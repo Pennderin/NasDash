@@ -129,6 +129,9 @@ function createWindow() {
   mainWindow.on('moved', saveBounds);
   mainWindow.on('closed', () => { mainWindow = null; });
 
+  // Save initial position for this display config
+  setTimeout(saveBounds, 3000);
+
   // Monitor display changes
   screen.on('display-added', () => setTimeout(onDisplayChange, 1500));
   screen.on('display-removed', () => setTimeout(onDisplayChange, 1500));
