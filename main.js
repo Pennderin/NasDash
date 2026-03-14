@@ -139,9 +139,9 @@ function createWindow() {
   setTimeout(saveBounds, 3000);
 
   // Monitor display changes
-  screen.on('display-added', () => setTimeout(onDisplayChange, 1500));
-  screen.on('display-removed', () => setTimeout(onDisplayChange, 1500));
-  screen.on('display-metrics-changed', () => setTimeout(onDisplayChange, 1500));
+  screen.on('display-added', () => setTimeout(onDisplayChange, 3000));
+  screen.on('display-removed', () => setTimeout(onDisplayChange, 3000));
+  screen.on('display-metrics-changed', () => setTimeout(onDisplayChange, 3000));
 }
 
 function createTray() {
