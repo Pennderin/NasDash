@@ -168,6 +168,39 @@
   .storage-bar-label { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; color:var(--text); text-shadow:0 1px 3px rgba(0,0,0,0.8); }
   .storage-details { display:flex; justify-content:space-between; margin-top:4px; font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); }
   .empty { text-align:center; padding:8px 0; font-size:10px; color:var(--text-dim); font-style:italic; opacity:0.5; }
+
+  /* ─── Font scale controls ─── */
+  .font-controls {
+    display: none;
+    position: absolute;
+    top: 4px; right: 6px;
+    z-index: 10;
+    gap: 2px;
+    align-items: center;
+  }
+  body.font-mode .font-controls { display: flex; }
+  .font-btn {
+    cursor: pointer;
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.04);
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .font-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+  .font-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px; color: var(--text-dim);
+    min-width: 26px; text-align: center;
+    opacity: 0.6;
+  }
+  .card.scalable { position: relative; }
+  .hdr-btn.font-active { color: var(--cyan); }
+  .hdr-btn.font-active:hover { background: var(--cyan-dim); }
 </style>
 </head>
 <body>
@@ -189,6 +222,7 @@
         <div class="refresh-dot" id="refreshDot"></div>
         <span class="header-time" id="clock"></span>
         <div class="hdr-btn" id="lockBtn" onclick="toggleLock()" title="Lock">&#x1F513;</div>
+        <div class="hdr-btn" id="fontBtn" onclick="toggleFontMode()" title="Font size">A</div>
         <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
         <div class="hdr-btn close" onclick="window.close()" title="Close">&#x2715;</div>
       </div>
@@ -197,7 +231,8 @@
 
   <div class="scroll-area" id="scrollArea">
 
-    <div class="card" style="margin:0 0 0 0;">
+    <div class="card scalable" data-scale-id="speed" style="margin:0 0 0 0;">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('speed',-1)">-</div><div class="font-pct" id="fpct-speed">100%</div><div class="font-btn" onclick="scaleCard('speed',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header">
           <div class="section-icon" style="background:var(--cyan-dim);color:var(--cyan);">&#x21C5;</div>
@@ -215,7 +250,8 @@
 
     <div class="card-handle" data-above="0" data-below="0"><div class="card-handle-bar"></div></div>
 
-    <div class="card grow" data-grow="0">
+    <div class="card grow scalable" data-grow="0" data-scale-id="playing">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('playing',-1)">-</div><div class="font-pct" id="fpct-playing">100%</div><div class="font-btn" onclick="scaleCard('playing',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header"><div class="section-icon" style="background:var(--green-dim);color:var(--green);">&#x25B6;</div><span class="section-label">Now Playing</span><span class="section-count" id="streamCount"></span></div>
         <div class="card-content" id="streams"><div class="empty">Loading...</div></div>
@@ -224,7 +260,8 @@
 
     <div class="card-handle" data-above="0" data-below="1"><div class="card-handle-bar"></div></div>
 
-    <div class="card grow" data-grow="1">
+    <div class="card grow scalable" data-grow="1" data-scale-id="pipeline">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('pipeline',-1)">-</div><div class="font-pct" id="fpct-pipeline">100%</div><div class="font-btn" onclick="scaleCard('pipeline',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header"><div class="section-icon" style="background:var(--blue-dim);color:var(--blue);">&#x2B07;</div><span class="section-label">Pipeline</span><span class="section-count" id="jobCount"></span></div>
         <div class="card-content" id="pipeline"><div class="empty">Loading...</div></div>
@@ -233,7 +270,8 @@
 
     <div class="card-handle" data-above="1" data-below="2"><div class="card-handle-bar"></div></div>
 
-    <div class="card grow" data-grow="2">
+    <div class="card grow scalable" data-grow="2" data-scale-id="services">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('services',-1)">-</div><div class="font-pct" id="fpct-services">100%</div><div class="font-btn" onclick="scaleCard('services',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header"><div class="section-icon" style="background:var(--accent-glow);color:var(--accent);">&#x25C6;</div><span class="section-label">Services</span>
           <div class="section-actions"><div class="section-btn" id="svcReorderBtn" onclick="toggleReorderMode()" title="Reorder">&#x21C5;</div><div class="section-btn" id="svcRemoveBtn" onclick="toggleRemoveMode()" title="Remove">&#x2212;</div><div class="section-btn" onclick="openServicePicker()" title="Add">&#x002B;</div></div>
@@ -244,7 +282,8 @@
 
     <div class="card-handle" data-above="2" data-below="3"><div class="card-handle-bar"></div></div>
 
-    <div class="card grow" data-grow="3" style="flex:2;">
+    <div class="card grow scalable" data-grow="3" data-scale-id="recent" style="flex:2;">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('recent',-1)">-</div><div class="font-pct" id="fpct-recent">100%</div><div class="font-btn" onclick="scaleCard('recent',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header"><div class="section-icon" style="background:rgba(168,85,247,0.15);color:var(--purple);">&#x2605;</div><span class="section-label">Recently Added</span></div>
         <div class="card-content" id="recent"><div class="empty">Loading...</div></div>
@@ -253,7 +292,8 @@
 
     <div class="card-handle" data-above="3" data-below="99"><div class="card-handle-bar"></div></div>
 
-    <div class="card" style="margin:0;">
+    <div class="card scalable" data-scale-id="library" style="margin:0;">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('library',-1)">-</div><div class="font-pct" id="fpct-library">100%</div><div class="font-btn" onclick="scaleCard('library',1)">+</div></div>
       <div class="card-inner">
         <div class="section-header"><div class="section-icon" style="background:var(--orange-dim);color:var(--orange);">&#x25A4;</div><span class="section-label">Library</span></div>
         <div class="lib-grid" id="libStats"><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Movies</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Shows</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Total</div></div></div>
@@ -512,11 +552,43 @@ async function fetchLib(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library
 
 async function refreshAll(){flashRefresh();await Promise.allSettled([fetchStreams(),fetchPipeline(),fetchServices(),fetchRecent(),fetchLib()]);}
 
+// ─── Font scaling ───
+let fontMode = false;
+let fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
+
+function toggleFontMode() {
+  fontMode = !fontMode;
+  document.body.classList.toggle('font-mode', fontMode);
+  document.getElementById('fontBtn').classList.toggle('font-active', fontMode);
+}
+
+function scaleCard(id, dir) {
+  const step = 5;
+  fontScales[id] = Math.max(50, Math.min(200, fontScales[id] + dir * step));
+  applyScale(id);
+  ipcRenderer.send('save-scales', fontScales);
+}
+
+function applyScale(id) {
+  const card = document.querySelector(`.card[data-scale-id="${id}"]`);
+  if (!card) return;
+  const inner = card.querySelector('.card-inner');
+  if (inner) inner.style.zoom = (fontScales[id] / 100).toString();
+  const pct = document.getElementById(`fpct-${id}`);
+  if (pct) pct.textContent = `${fontScales[id]}%`;
+}
+
+function applyAllScales() {
+  for (const id of Object.keys(fontScales)) applyScale(id);
+}
+
 // ─── Init ───
 (async()=>{
   const sv=await ipcRenderer.invoke('load-services');if(sv&&Array.isArray(sv))activeSvc=sv;
   const rt=await ipcRenderer.invoke('load-ratios');if(rt)ratios={...defaultRatios,...rt};
+  const sc=await ipcRenderer.invoke('load-scales');if(sc)fontScales={...fontScales,...sc};
   applyRatios();
+  applyAllScales();
   refreshAll();
 })();
 setInterval(refreshAll,REFRESH_MS);

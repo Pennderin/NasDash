@@ -16,6 +16,7 @@ const FILES = {
   services: path.join(stateDir, 'services-config.json'),
   bounds:   path.join(stateDir, 'display-bounds.json'),
   ratios:   path.join(stateDir, 'card-ratios.json'),
+  scales:   path.join(stateDir, 'font-scales.json'),
   state:    path.join(stateDir, 'widget-state.json'),
 };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -200,6 +201,10 @@ ipcMain.handle('get-lock-state', () => state.locked);
 // ─── Card ratios ───
 ipcMain.handle('load-ratios', () => readJSON(FILES.ratios));
 ipcMain.on('save-ratios', (ev, d) => writeJSON(FILES.ratios, d));
+
+// ─── Font scales ───
+ipcMain.handle('load-scales', () => readJSON(FILES.scales));
+ipcMain.on('save-scales', (ev, d) => writeJSON(FILES.scales, d));
 
 // ─── Services ───
 ipcMain.handle('load-services', () => readJSON(FILES.services));
