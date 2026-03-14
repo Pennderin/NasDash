@@ -100,6 +100,11 @@ function onDisplayChange() {
     // First time on this config — default to right edge of primary
     mainWindow.setBounds(getDefaultBounds());
   }
+
+  // Tell renderer to reload font scales for this display config
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('display-changed');
+  }
 }
 
 // ───────────────────────────────────────────
@@ -202,9 +207,18 @@ ipcMain.handle('get-lock-state', () => state.locked);
 ipcMain.handle('load-ratios', () => readJSON(FILES.ratios));
 ipcMain.on('save-ratios', (ev, d) => writeJSON(FILES.ratios, d));
 
-// ─── Font scales ───
-ipcMain.handle('load-scales', () => readJSON(FILES.scales));
-ipcMain.on('save-scales', (ev, d) => writeJSON(FILES.scales, d));
+// ─── Font scales (per-display config) ───
+ipcMain.handle('load-scales', () => {
+  const all = readJSON(FILES.scales) || {};
+  const fp = getDisplayFingerprint();
+  return all[fp] || null;
+});
+ipcMain.on('save-scales', (ev, d) => {
+  const all = readJSON(FILES.scales) || {};
+  const fp = getDisplayFingerprint();
+  all[fp] = d;
+  writeJSON(FILES.scales, all);
+});
 
 // ─── Services ───
 ipcMain.handle('load-services', () => readJSON(FILES.services));

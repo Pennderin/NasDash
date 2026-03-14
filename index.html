@@ -582,6 +582,14 @@ function applyAllScales() {
   for (const id of Object.keys(fontScales)) applyScale(id);
 }
 
+// Reload font scales when monitors change
+ipcRenderer.on('display-changed', async () => {
+  const sc = await ipcRenderer.invoke('load-scales');
+  if (sc) fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100, ...sc };
+  else fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
+  applyAllScales();
+});
+
 // ─── Init ───
 (async()=>{
   const sv=await ipcRenderer.invoke('load-services');if(sv&&Array.isArray(sv))activeSvc=sv;
