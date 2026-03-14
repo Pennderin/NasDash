@@ -1,5 +1,5 @@
 {
-  "name": "unraid-nas-widget",
+  "name": "nasdash",
   "version": "1.0.0",
   "description": "Desktop widget for monitoring Unraid NAS - services, Plex streams, media pipeline, speed tests, and more",
   "main": "main.js",
@@ -11,14 +11,14 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
-    "appId": "com.pennderin.unraid-nas-widget",
-    "productName": "Unraid NAS Widget",
+    "appId": "com.pennderin.nasdash",
+    "productName": "NasDash",
     "win": {
       "target": "portable",
       "icon": "icon.ico"
     },
     "portable": {
-      "artifactName": "Unraid-NAS-Widget.exe"
+      "artifactName": "NasDash.exe"
     },
     "files": [
       "main.js",

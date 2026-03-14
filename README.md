@@ -1,4 +1,4 @@
-# Unraid NAS Widget
+# NasDash
 
 A sleek, always-on-top desktop widget for monitoring your Unraid NAS at a glance.
 
