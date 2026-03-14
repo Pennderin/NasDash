@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.exe
+speedtest-results.json
+services-config.json
+card-ratios.json
+widget-state.json
+window-bounds.json

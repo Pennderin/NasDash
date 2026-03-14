@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: rgba(10, 10, 15, 0.82);
+    --surface: rgba(18, 18, 26, 0.92);
+    --surface2: rgba(26, 26, 38, 0.95);
+    --border: rgba(255, 255, 255, 0.06);
+    --text: #e8e8f0;
+    --text-dim: #7a7a90;
+    --accent: #6366f1;
+    --accent-glow: rgba(99, 102, 241, 0.2);
+    --green: #22c55e; --green-dim: rgba(34, 197, 94, 0.15);
+    --orange: #f59e0b; --orange-dim: rgba(245, 158, 11, 0.15);
+    --red: #ef4444; --red-dim: rgba(239, 68, 68, 0.15);
+    --blue: #3b82f6; --blue-dim: rgba(59, 130, 246, 0.15);
+    --purple: #a855f7;
+    --cyan: #06b6d4; --cyan-dim: rgba(6, 182, 212, 0.15);
+    --card-radius: 12px;
+  }
+
+  html, body { background: transparent !important; height: 100vh; overflow: hidden; }
+  body { font-family: 'Outfit', sans-serif; color: var(--text); user-select: none; display: flex; flex-direction: column; height: 100vh; }
+
+  /* ─── Resize edges (hidden when locked) ─── */
+  .resize-edge { position: fixed; z-index: 999; }
+  .resize-edge.top    { top:0; left:6px; right:6px; height:6px; cursor:n-resize; }
+  .resize-edge.bottom { bottom:0; left:6px; right:6px; height:6px; cursor:s-resize; }
+  .resize-edge.left   { top:6px; left:0; bottom:6px; width:6px; cursor:w-resize; }
+  .resize-edge.right  { top:6px; right:0; bottom:6px; width:6px; cursor:e-resize; }
+  .resize-edge.top-left     { top:0; left:0; width:10px; height:10px; cursor:nw-resize; }
+  .resize-edge.top-right    { top:0; right:0; width:10px; height:10px; cursor:ne-resize; }
+  .resize-edge.bottom-left  { bottom:0; left:0; width:10px; height:10px; cursor:sw-resize; }
+  .resize-edge.bottom-right { bottom:0; right:0; width:10px; height:10px; cursor:se-resize; }
+  body.locked .resize-edge { display: none; }
+
+  /* ─── Cards ─── */
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--card-radius); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink: 0; }
+  .card-inner { padding: 10px 13px; }
+  .card.grow { flex: 1; min-height: 40px; display: flex; flex-direction: column; }
+  .card.grow .card-inner { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .card.grow .card-content { flex: 1; min-height: 0; overflow-y: auto; }
+  .card.grow .card-content::-webkit-scrollbar { width: 2px; }
+  .card.grow .card-content::-webkit-scrollbar-track { background: transparent; }
+  .card.grow .card-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+  /* ─── Card resize handles ─── */
+  .card-handle { height: 7px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-handle-bar { width: 30px; height: 2px; border-radius: 1px; background: rgba(255,255,255,0.06); transition: background 0.15s, width 0.15s; }
+  .card-handle:hover .card-handle-bar { background: rgba(255,255,255,0.2); width: 50px; }
+  body.locked .card-handle { cursor: default; pointer-events: none; }
+  body.locked .card-handle-bar { display: none; }
+
+  /* ─── Layout ─── */
+  .widget-wrap { display: flex; flex-direction: column; height: 100vh; padding: 6px; gap: 0; }
+  body.collapsed .widget-wrap { height: auto; }
+  body.collapsed .scroll-area { display: none; }
+  .scroll-area { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0; overflow: hidden; }
+
+  /* ─── Header ─── */
+  .header { padding: 10px 13px 8px; display: flex; align-items: center; justify-content: space-between; -webkit-app-region: drag; cursor: grab; }
+  body.locked .header { -webkit-app-region: no-drag; cursor: default; }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  .logo { width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), var(--purple)); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; box-shadow: 0 0 12px var(--accent-glow); }
+  .header-title { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-dim); }
+  .header-right { display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag; }
+  .header-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); }
+  .refresh-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); opacity: 0; transition: opacity 0.3s; }
+  .refresh-dot.active { opacity: 1; }
+  .hdr-btn { cursor: pointer; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 11px; color: var(--text-dim); transition: all 0.15s; line-height: 1; }
+  .hdr-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .hdr-btn.close:hover { background: var(--red-dim); color: var(--red); }
+  .hdr-btn.lock-active { color: var(--orange); }
+  .hdr-btn.lock-active:hover { background: var(--orange-dim); }
+
+  /* ─── Sections ─── */
+  .section-header { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; flex-shrink: 0; }
+  .section-icon { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 9px; border-radius: 4px; }
+  .section-label { font-size: 9px; font-weight: 600; letter-spacing: 1.8px; text-transform: uppercase; color: var(--text-dim); }
+  .section-count { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--text-dim); margin-left: auto; opacity: 0.7; }
+  .section-actions { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+  .section-btn { cursor: pointer; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--text-dim); transition: all 0.15s; line-height: 1; }
+  .section-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+  .section-btn.active { background: var(--red-dim); color: var(--red); }
+  .section-btn.active-accent { background: var(--accent-glow); color: var(--accent); }
+
+  /* Speed */
+  .speed-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .speed-stat { text-align: center; padding: 8px 4px; background: var(--surface); border-radius: 8px; }
+  .speed-value { font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; line-height: 1.1; }
+  .speed-unit { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--text-dim); margin-top: 1px; }
+  .speed-label { font-size: 8px; font-weight: 500; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+  .speed-dl .speed-value { color: var(--green); } .speed-ul .speed-value { color: var(--blue); } .speed-ping .speed-value { color: var(--orange); }
+  .speed-meta { text-align: center; margin-top: 5px; font-size: 8px; color: var(--text-dim); opacity: 0.6; }
+  .speed-refresh { cursor: pointer; opacity: 0.5; transition: opacity 0.2s; } .speed-refresh:hover { opacity: 1; }
+  @keyframes speedPulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+  .speed-running .speed-value { animation: speedPulse 1.2s ease infinite; color: var(--text-dim) !important; }
+
+  /* Streams */
+  .stream-card { background: var(--surface); border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; position: relative; overflow: hidden; }
+  .stream-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--green); border-radius: 0 2px 2px 0; }
+  .stream-title { font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; }
+  .stream-meta { font-size: 9px; color: var(--text-dim); margin-top: 2px; display: flex; align-items: center; gap: 6px; padding-left: 6px; }
+  .stream-progress { height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; margin-top: 5px; margin-left: 6px; overflow: hidden; }
+  .stream-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); border-radius: 1px; transition: width 1s ease; }
+
+  /* Pipeline */
+  .job-card { background: var(--surface); border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; }
+  .job-name { font-size: 10.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-status { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+  .job-step { font-family: 'JetBrains Mono', monospace; font-size: 8.5px; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+  .step-transferring{background:var(--blue-dim);color:var(--blue);} .step-renaming{background:rgba(168,85,247,0.2);color:var(--purple);} .step-queued{background:var(--orange-dim);color:var(--orange);} .step-complete{background:var(--green-dim);color:var(--green);} .step-failed{background:var(--red-dim);color:var(--red);}
+  .job-progress-text { font-size: 9px; color: var(--text-dim); }
+
+  /* Services */
+  .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .service-pill { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--surface); border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+  .service-pill:hover { background: var(--surface2); transform: translateY(-1px); } .service-pill:active { transform: scale(0.97); }
+  .service-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .dot-up { background: var(--green); box-shadow: 0 0 5px var(--green); } .dot-down { background: var(--red); box-shadow: 0 0 5px var(--red); }
+  .service-name { font-size: 9.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .service-open { font-size: 8px; color: var(--text-dim); opacity: 0; transition: opacity 0.15s; } .service-pill:hover .service-open { opacity: 0.7; }
+  .service-pill.remove-mode { cursor: crosshair; } .service-pill.remove-mode:hover { background: var(--red-dim); } .service-pill.remove-mode:hover .service-name { color: var(--red); }
+  .service-pill.remove-mode .service-open { display: none; }
+  .service-pill.remove-mode::after { content:'\00d7'; font-size:12px; color:var(--red); opacity:0; transition:opacity 0.15s; } .service-pill.remove-mode:hover::after { opacity:1; }
+
+  /* Reorder mode */
+  .service-pill.reorder-mode { cursor: grab; }
+  .service-pill.reorder-mode:active { cursor: grabbing; }
+  .service-pill.reorder-mode .service-open { display: none; }
+  .service-pill.reorder-mode .svc-grip { display: flex; }
+  .service-pill.reorder-mode:hover { background: var(--surface2); }
+  .svc-grip { display: none; margin-left: auto; flex-shrink: 0; color: var(--text-dim); font-size: 10px; letter-spacing: 1px; opacity: 0.4; pointer-events: none; }
+  .service-pill.reorder-mode:hover .svc-grip { opacity: 0.8; }
+  .service-pill.drag-over-above { border-top: 2px solid var(--accent); margin-top: -2px; }
+  .service-pill.drag-over-below { border-bottom: 2px solid var(--accent); margin-bottom: -2px; }
+  .service-pill.dragging { opacity: 0.3; }
+
+  /* Picker */
+  .picker-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:50; padding:30px 16px; overflow-y:auto; }
+  .picker-overlay.visible { display: block; }
+  .picker-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:10px; letter-spacing:1px; text-transform:uppercase; }
+  .picker-item { display:flex; align-items:center; gap:10px; padding:8px 12px; margin-bottom:4px; background:var(--surface); border-radius:8px; cursor:pointer; transition:all 0.15s; }
+  .picker-item:hover { background:var(--surface2); transform:translateX(4px); }
+  .picker-item .pi-name { font-size:11px; font-weight:500; flex:1; } .picker-item .pi-port { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--text-dim); } .picker-item .pi-add { color:var(--green); font-size:14px; font-weight:700; }
+  .picker-close { text-align:center; padding:10px; font-size:10px; color:var(--text-dim); cursor:pointer; margin-top:8px; letter-spacing:1px; text-transform:uppercase; } .picker-close:hover { color:var(--text); }
+
+  /* Recent */
+  .recent-item { display:flex; align-items:center; gap:8px; padding:4px 0; }
+  .recent-badge { font-size:7.5px; font-weight:600; padding:1px 5px; border-radius:3px; letter-spacing:0.5px; flex-shrink:0; min-width:32px; text-align:center; }
+  .badge-movie{background:var(--accent-glow);color:var(--accent);} .badge-show{background:rgba(168,85,247,0.15);color:var(--purple);} .badge-episode{background:var(--blue-dim);color:var(--blue);}
+  .recent-title { font-size:10.5px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .recent-year { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); flex-shrink:0; }
+
+  /* Library */
+  .lib-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; }
+  .lib-stat { background:var(--surface); border-radius:6px; padding:6px; text-align:center; }
+  .lib-count { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:var(--text); }
+  .lib-label { font-size:7.5px; font-weight:500; color:var(--text-dim); margin-top:1px; letter-spacing:0.5px; }
+  .storage-bar-bg { height:18px; background:var(--surface); border-radius:5px; overflow:hidden; position:relative; }
+  .storage-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--accent),var(--purple)); transition:width 1s ease; }
+  .storage-bar-fill.warn { background:linear-gradient(90deg,var(--orange),var(--red)); }
+  .storage-bar-label { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; color:var(--text); text-shadow:0 1px 3px rgba(0,0,0,0.8); }
+  .storage-details { display:flex; justify-content:space-between; margin-top:4px; font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); }
+  .empty { text-align:center; padding:8px 0; font-size:10px; color:var(--text-dim); font-style:italic; opacity:0.5; }
+</style>
+</head>
+<body>
+
+<div class="resize-edge top" data-edge="top"></div>
+<div class="resize-edge bottom" data-edge="bottom"></div>
+<div class="resize-edge left" data-edge="left"></div>
+<div class="resize-edge right" data-edge="right"></div>
+<div class="resize-edge top-left" data-edge="top-left"></div>
+<div class="resize-edge top-right" data-edge="top-right"></div>
+<div class="resize-edge bottom-left" data-edge="bottom-left"></div>
+<div class="resize-edge bottom-right" data-edge="bottom-right"></div>
+
+<div class="widget-wrap">
+  <div class="card" style="margin-bottom:5px;">
+    <div class="header">
+      <div class="header-left"><div class="logo">U</div><span class="header-title">Unraid NAS</span></div>
+      <div class="header-right">
+        <div class="refresh-dot" id="refreshDot"></div>
+        <span class="header-time" id="clock"></span>
+        <div class="hdr-btn" id="lockBtn" onclick="toggleLock()" title="Lock">&#x1F513;</div>
+        <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
+        <div class="hdr-btn close" onclick="window.close()" title="Close">&#x2715;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-area" id="scrollArea">
+
+    <div class="card" style="margin:0 0 0 0;">
+      <div class="card-inner">
+        <div class="section-header">
+          <div class="section-icon" style="background:var(--cyan-dim);color:var(--cyan);">&#x21C5;</div>
+          <span class="section-label">Speed Test</span>
+          <span class="speed-refresh section-actions" onclick="requestSpeedTest()" title="Run now">&#x21BB;</span>
+        </div>
+        <div class="speed-grid" id="speedGrid">
+          <div class="speed-stat speed-dl"><div class="speed-value" id="speedDl">--</div><div class="speed-unit">Mbps</div><div class="speed-label">Download</div></div>
+          <div class="speed-stat speed-ul"><div class="speed-value" id="speedUl">--</div><div class="speed-unit">Mbps</div><div class="speed-label">Upload</div></div>
+          <div class="speed-stat speed-ping"><div class="speed-value" id="speedPing">--</div><div class="speed-unit">ms</div><div class="speed-label">Ping</div></div>
+        </div>
+        <div class="speed-meta" id="speedMeta">Waiting...</div>
+      </div>
+    </div>
+
+    <div class="card-handle" data-above="0" data-below="0"><div class="card-handle-bar"></div></div>
+
+    <div class="card grow" data-grow="0">
+      <div class="card-inner">
+        <div class="section-header"><div class="section-icon" style="background:var(--green-dim);color:var(--green);">&#x25B6;</div><span class="section-label">Now Playing</span><span class="section-count" id="streamCount"></span></div>
+        <div class="card-content" id="streams"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="card-handle" data-above="0" data-below="1"><div class="card-handle-bar"></div></div>
+
+    <div class="card grow" data-grow="1">
+      <div class="card-inner">
+        <div class="section-header"><div class="section-icon" style="background:var(--blue-dim);color:var(--blue);">&#x2B07;</div><span class="section-label">Pipeline</span><span class="section-count" id="jobCount"></span></div>
+        <div class="card-content" id="pipeline"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="card-handle" data-above="1" data-below="2"><div class="card-handle-bar"></div></div>
+
+    <div class="card grow" data-grow="2">
+      <div class="card-inner">
+        <div class="section-header"><div class="section-icon" style="background:var(--accent-glow);color:var(--accent);">&#x25C6;</div><span class="section-label">Services</span>
+          <div class="section-actions"><div class="section-btn" id="svcReorderBtn" onclick="toggleReorderMode()" title="Reorder">&#x21C5;</div><div class="section-btn" id="svcRemoveBtn" onclick="toggleRemoveMode()" title="Remove">&#x2212;</div><div class="section-btn" onclick="openServicePicker()" title="Add">&#x002B;</div></div>
+        </div>
+        <div class="card-content"><div class="services-grid" id="services"></div></div>
+      </div>
+    </div>
+
+    <div class="card-handle" data-above="2" data-below="3"><div class="card-handle-bar"></div></div>
+
+    <div class="card grow" data-grow="3" style="flex:2;">
+      <div class="card-inner">
+        <div class="section-header"><div class="section-icon" style="background:rgba(168,85,247,0.15);color:var(--purple);">&#x2605;</div><span class="section-label">Recently Added</span></div>
+        <div class="card-content" id="recent"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="card-handle" data-above="3" data-below="99"><div class="card-handle-bar"></div></div>
+
+    <div class="card" style="margin:0;">
+      <div class="card-inner">
+        <div class="section-header"><div class="section-icon" style="background:var(--orange-dim);color:var(--orange);">&#x25A4;</div><span class="section-label">Library</span></div>
+        <div class="lib-grid" id="libStats"><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Movies</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Shows</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Total</div></div></div>
+        <div style="margin-top:8px;"><div class="section-header" style="margin-bottom:5px;"><div class="section-icon" style="background:rgba(255,255,255,0.04);color:var(--text-dim);">&#x25E7;</div><span class="section-label">NAS Storage</span></div>
+          <div><div class="storage-bar-bg"><div class="storage-bar-fill" style="width:51%"></div><div class="storage-bar-label">51% Used</div></div><div class="storage-details"><span>11.1 TB used</span><span>10.7 TB free</span><span>21.8 TB total</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="picker-overlay" id="pickerOverlay"><div class="picker-title">Add a service</div><div id="pickerList"></div><div class="picker-close" onclick="closeServicePicker()">Cancel</div></div>
+
+<script>
+const http = require('http');
+const { ipcRenderer } = require('electron');
+
+const NAS_IP = '192.168.0.190', PLEX_TOKEN = 'LAKWMV_Mz2oFF4w5yBWf', MM_PORT = 9876, PLEX_PORT = 32400, REFRESH_MS = 30000;
+
+const ALL_SERVICES = [
+  {name:'Plex',port:32400,url:'http://192.168.0.190:32400/web'},{name:'Media Manager',port:9876,url:'http://192.168.0.190:9876'},
+  {name:'Media Companion',port:3001,url:'http://192.168.0.190:3001'},{name:'Hunterr',port:9878,url:'http://192.168.0.190:9878'},
+  {name:'Audiobookshelf',port:13378,url:'http://192.168.0.190:13378'},{name:'Home Assistant',port:8123,url:'http://192.168.0.190:8123'},
+  {name:'Homebridge',port:8581,url:'http://192.168.0.190:8581'},{name:'FlareSolverr 1',port:8191,url:'http://192.168.0.190:8191'},
+  {name:'FlareSolverr 2',port:8192,url:'http://192.168.0.190:8192'},{name:'Claude Door',port:2280,url:'http://192.168.0.190:2280'},
+  {name:'Loot Tracker',port:3100,url:'http://192.168.0.190:3100'},{name:'RustDesk',port:21117,url:''},
+  {name:'Unraid WebUI',port:80,url:'http://192.168.0.190'},
+];
+const DEFAULT_SVC = ['Plex','Media Manager','Media Companion','Hunterr','Audiobookshelf','Home Assistant','FlareSolverr 1','Claude Door'];
+let activeSvc = [...DEFAULT_SVC], removeMode = false, collapsed = false, isLocked = false;
+
+// ─── Helpers ───
+function httpGet(h,p,path,t=5000){return new Promise((ok,no)=>{const r=http.get({hostname:h,port:p,path,timeout:t},res=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>ok(d));});r.on('error',no);r.on('timeout',()=>{r.destroy();no(new Error('t'));});})}
+function xAttr(xml,tag){const r=[],re=new RegExp(`<${tag}\\s([^>]+?)\\s*/?>`, 'g');let m;while((m=re.exec(xml))!==null){const a={};let am;const ar=/(\w+)="([^"]*)"/g;while((am=ar.exec(m[1]))!==null)a[am[1]]=am[2].replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');r.push(a);}return r;}
+function openService(u){if(u)ipcRenderer.send('open-url',u);}
+
+// ─── Window resize ───
+let wr=false,we='',wlx=0,wly=0;
+document.querySelectorAll('.resize-edge').forEach(el=>{el.addEventListener('mousedown',e=>{if(isLocked)return;wr=true;we=el.dataset.edge;wlx=e.screenX;wly=e.screenY;e.preventDefault();});});
+document.addEventListener('mousemove',e=>{if(wr){ipcRenderer.send('resize',we,e.screenX-wlx,e.screenY-wly);wlx=e.screenX;wly=e.screenY;}if(cardDrag.active)doCardDrag(e);});
+document.addEventListener('mouseup',()=>{if(wr){wr=false;ipcRenderer.send('resize-done');}if(cardDrag.active)endCardDrag();});
+
+// ─── Card flex resize ───
+const growCards = document.querySelectorAll('.card[data-grow]');
+const defaultRatios = {0:1,1:1,2:1,3:2};
+let ratios = {...defaultRatios};
+
+function applyRatios(){growCards.forEach(c=>{const i=c.dataset.grow;c.style.flex=ratios[i]||1;});}
+
+const cardDrag = {active:false,handle:null,aboveIdx:null,belowIdx:null,startY:0,startAbove:0,startBelow:0};
+
+document.querySelectorAll('.card-handle').forEach(h=>{
+  h.addEventListener('mousedown',e=>{
+    if(isLocked)return;
+    const ai=h.dataset.above, bi=h.dataset.below;
+    if(bi==='99')return; // bottom handle, no below grow card
+    cardDrag.active=true;
+    cardDrag.handle=h;
+    cardDrag.aboveIdx=ai;
+    cardDrag.belowIdx=bi;
+    cardDrag.startY=e.screenY;
+    cardDrag.startAbove=ratios[ai]||1;
+    cardDrag.startBelow=ratios[bi]||1;
+    e.preventDefault();
+  });
+});
+
+function doCardDrag(e){
+  const dy=e.screenY-cardDrag.startY;
+  const totalFlex=cardDrag.startAbove+cardDrag.startBelow;
+  // Convert pixel drag to flex delta (rough: 100px = 1 flex unit)
+  const delta=dy/100;
+  let newAbove=Math.max(0.3, cardDrag.startAbove+delta);
+  let newBelow=Math.max(0.3, cardDrag.startBelow-delta);
+  // Normalize to keep total the same
+  const scale=totalFlex/(newAbove+newBelow);
+  newAbove*=scale; newBelow*=scale;
+  ratios[cardDrag.aboveIdx]=Math.round(newAbove*100)/100;
+  ratios[cardDrag.belowIdx]=Math.round(newBelow*100)/100;
+  applyRatios();
+}
+
+function endCardDrag(){
+  cardDrag.active=false;
+  ipcRenderer.send('save-ratios',ratios);
+}
+
+// The first handle (above speed, below card 0) - just adjust card 0
+document.querySelector('.card-handle[data-above="0"][data-below="0"]')?.addEventListener('mousedown',e=>{
+  // This handle is between speed test (fixed) and Now Playing (grow 0)
+  // We won't let it resize since speed is fixed. Remove it or repurpose.
+});
+
+// ─── Lock ───
+function toggleLock(){ipcRenderer.send('toggle-lock');}
+ipcRenderer.on('lock-state',(ev,l)=>{
+  isLocked=l;
+  document.body.classList.toggle('locked',l);
+  const btn=document.getElementById('lockBtn');
+  btn.innerHTML=l?'&#x1F512;':'&#x1F513;';
+  btn.classList.toggle('lock-active',l);
+  btn.title=l?'Unlock':'Lock';
+});
+ipcRenderer.invoke('get-lock-state').then(l=>{
+  isLocked=l;
+  document.body.classList.toggle('locked',l);
+  const btn=document.getElementById('lockBtn');
+  btn.innerHTML=l?'&#x1F512;':'&#x1F513;';
+  btn.classList.toggle('lock-active',l);
+  btn.title=l?'Unlock':'Lock';
+});
+
+// ─── Collapse ───
+function toggleCollapse(){
+  collapsed=!collapsed;
+  document.body.classList.toggle('collapsed',collapsed);
+  document.getElementById('collapseBtn').innerHTML=collapsed?'&#x25A1;':'&#x2014;';
+  document.getElementById('collapseBtn').title=collapsed?'Expand':'Collapse';
+  ipcRenderer.send(collapsed?'collapse-widget':'expand-widget');
+}
+
+// ─── Clock ───
+function updateClock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});}
+setInterval(updateClock,1000);updateClock();
+function flashRefresh(){const d=document.getElementById('refreshDot');d.classList.add('active');setTimeout(()=>d.classList.remove('active'),1000);}
+
+// ─── Speed ───
+function requestSpeedTest(){ipcRenderer.send('run-speedtest');}
+function showSpeed(d){
+  document.getElementById('speedDl').textContent=d.download;
+  document.getElementById('speedUl').textContent=d.upload;
+  document.getElementById('speedPing').textContent=d.ping;
+  const ts=new Date(d.timestamp);
+  document.getElementById('speedMeta').innerHTML=`${d.server||''} &middot; ${ts.toLocaleDateString('en-US',{month:'short',day:'numeric'})} ${ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}`;
+}
+ipcRenderer.on('speedtest-results',(ev,d)=>{
+  const g=document.getElementById('speedGrid'),m=document.getElementById('speedMeta');
+  if(d.running){g.classList.add('speed-running');m.textContent='Running...';return;}
+  g.classList.remove('speed-running');
+  if(d.error){m.textContent='Failed';return;}
+  showSpeed(d);
+});
+ipcRenderer.invoke('get-cached-speed').then(d=>{if(d?.download)showSpeed(d);});
+
+// ─── Services ───
+function getActive(){return activeSvc.map(n=>ALL_SERVICES.find(s=>s.name===n)).filter(Boolean);}
+function saveSvc(){ipcRenderer.send('save-services',activeSvc);}
+let lastSvc=null, reorderMode=false;
+
+function toggleRemoveMode(){
+  if(reorderMode)toggleReorderMode();
+  removeMode=!removeMode;
+  document.getElementById('svcRemoveBtn').classList.toggle('active',removeMode);
+  renderSvc(lastSvc||getActive().map(s=>({...s,up:true})));
+}
+function toggleReorderMode(){
+  if(removeMode)toggleRemoveMode();
+  reorderMode=!reorderMode;
+  document.getElementById('svcReorderBtn').classList.toggle('active-accent',reorderMode);
+  renderSvc(lastSvc||getActive().map(s=>({...s,up:true})));
+}
+function removeService(n){activeSvc=activeSvc.filter(x=>x!==n);saveSvc();fetchServices();}
+function addService(n){if(!activeSvc.includes(n)){activeSvc.push(n);saveSvc();}closeServicePicker();fetchServices();}
+function openServicePicker(){
+  const a=ALL_SERVICES.filter(s=>!activeSvc.includes(s.name));
+  document.getElementById('pickerList').innerHTML=a.length===0?'<div class="empty" style="padding:20px 0;">All added</div>':a.map(s=>`<div class="picker-item" onclick="addService('${s.name}')"><span class="pi-add">+</span><span class="pi-name">${s.name}</span><span class="pi-port">:${s.port}</span></div>`).join('');
+  document.getElementById('pickerOverlay').classList.add('visible');
+}
+function closeServicePicker(){document.getElementById('pickerOverlay').classList.remove('visible');}
+
+function renderSvc(results){
+  lastSvc=results;
+  const el=document.getElementById('services');
+  el.innerHTML=results.map((s,i)=>{
+    const rm=removeMode?' remove-mode':reorderMode?' reorder-mode':'';
+    const oc=removeMode?`removeService('${s.name}')`:reorderMode?'':`openService('${s.url}')`;
+    const drag=reorderMode?`draggable="true" data-idx="${i}"`:''
+    return `<div class="service-pill${rm}" onclick="${oc}" ${drag} title="${removeMode?'Remove':reorderMode?'Drag to reorder':'Open '+s.name}"><div class="service-dot ${s.up?'dot-up':'dot-down'}"></div><span class="service-name">${s.name}</span><span class="svc-grip">&#x2261;</span><span class="service-open">&#x2197;</span></div>`;
+  }).join('');
+
+  if(reorderMode) setupDragHandlers();
+}
+
+let dragIdx=null;
+function setupDragHandlers(){
+  const pills=document.querySelectorAll('.service-pill.reorder-mode');
+  pills.forEach(pill=>{
+    pill.addEventListener('dragstart',e=>{
+      dragIdx=parseInt(pill.dataset.idx);
+      pill.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',dragIdx);
+    });
+    pill.addEventListener('dragend',()=>{
+      pill.classList.remove('dragging');
+      pills.forEach(p=>{p.classList.remove('drag-over-above','drag-over-below');});
+      dragIdx=null;
+    });
+    pill.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      const targetIdx=parseInt(pill.dataset.idx);
+      pills.forEach(p=>p.classList.remove('drag-over-above','drag-over-below'));
+      if(targetIdx===dragIdx)return;
+      const rect=pill.getBoundingClientRect();
+      const mid=rect.top+rect.height/2;
+      if(e.clientY<mid) pill.classList.add('drag-over-above');
+      else pill.classList.add('drag-over-below');
+    });
+    pill.addEventListener('dragleave',()=>{
+      pill.classList.remove('drag-over-above','drag-over-below');
+    });
+    pill.addEventListener('drop',e=>{
+      e.preventDefault();
+      const fromIdx=parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx=parseInt(pill.dataset.idx);
+      if(fromIdx===toIdx)return;
+      const rect=pill.getBoundingClientRect();
+      const mid=rect.top+rect.height/2;
+      const insertAfter=e.clientY>=mid;
+
+      // Reorder activeSvc
+      const moving=activeSvc[fromIdx];
+      activeSvc.splice(fromIdx,1);
+      let newIdx=toIdx>fromIdx?toIdx-1:toIdx;
+      if(insertAfter)newIdx++;
+      activeSvc.splice(newIdx,0,moving);
+      saveSvc();
+
+      // Also reorder lastSvc to match
+      if(lastSvc){
+        const movingR=lastSvc[fromIdx];
+        lastSvc.splice(fromIdx,1);
+        let ni=toIdx>fromIdx?toIdx-1:toIdx;
+        if(insertAfter)ni++;
+        lastSvc.splice(ni,0,movingR);
+      }
+      renderSvc(lastSvc||getActive().map(s=>({...s,up:true})));
+    });
+  });
+}
+async function fetchServices(){
+  const svcs=getActive();
+  const r=await Promise.all(svcs.map(async s=>{try{await httpGet(NAS_IP,s.port,'/',3000);return{...s,up:true};}catch{return{...s,up:false};}}));
+  renderSvc(r);
+}
+
+// ─── Data fetchers ───
+async function fetchStreams(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/status/sessions?X-Plex-Token=${PLEX_TOKEN}`);const v=xAttr(xml,'Video');const el=document.getElementById('streams'),cnt=document.getElementById('streamCount');if(!v.length){el.innerHTML='<div class="empty">Nothing playing</div>';cnt.textContent='';return;}cnt.textContent=`${v.length} stream${v.length>1?'s':''}`;el.innerHTML=v.map(v=>{const p=v.viewOffset&&v.duration?Math.round(parseInt(v.viewOffset)/parseInt(v.duration)*100):0;const d=v.duration?Math.round(parseInt(v.duration)/60000):0;const o=v.viewOffset?Math.round(parseInt(v.viewOffset)/60000):0;const t=v.grandparentTitle?`${v.grandparentTitle} - ${v.title}`:v.title||'?';const r=v.videoResolution||'';return `<div class="stream-card"><div class="stream-title">${t}</div><div class="stream-meta"><span>${v.year||''}</span>${r?`<span>${r}p</span>`:''}<span>${o}m / ${d}m</span></div><div class="stream-progress"><div class="stream-progress-bar" style="width:${p}%"></div></div></div>`;}).join('');}catch{document.getElementById('streams').innerHTML='<div class="empty">Plex unreachable</div>';}}
+
+async function fetchPipeline(){try{const d=JSON.parse(await httpGet(NAS_IP,MM_PORT,'/status'));const j=d.jobs||[];const el=document.getElementById('pipeline'),cnt=document.getElementById('jobCount');if(!j.length){el.innerHTML='<div class="empty">No active jobs</div>';cnt.textContent='';return;}cnt.textContent=`${j.filter(x=>x.status!=='complete'&&x.status!=='cancelled').length} active`;el.innerHTML=j.slice(0,5).map(j=>{const sc=j.step==='transferring'?'step-transferring':j.step==='renaming'?'step-renaming':j.status==='complete'?'step-complete':j.status==='failed'?'step-failed':'step-queued';let n=(j.name||'?').replace(/\.(mkv|mp4|avi|mov)$/i,'').replace(/\./g,' ').trim();if(n.length>40)n=n.substring(0,37)+'...';return `<div class="job-card"><div class="job-name">${n}</div><div class="job-status"><span class="job-step ${sc}">${j.step||j.status||'?'}</span><span class="job-progress-text">${j.progress||''}</span></div></div>`;}).join('');}catch{document.getElementById('pipeline').innerHTML='<div class="empty">Media Manager unreachable</div>';}}
+
+async function fetchRecent(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library/recentlyAdded?X-Plex-Token=${PLEX_TOKEN}&X-Plex-Container-Size=8`);const it=[...xAttr(xml,'Video'),...xAttr(xml,'Directory')].slice(0,7);const el=document.getElementById('recent');if(!it.length){el.innerHTML='<div class="empty">No recent</div>';return;}el.innerHTML=it.map(i=>{const tp=i.type||'movie';const bc=tp==='movie'?'badge-movie':tp==='show'?'badge-show':'badge-episode';const bl=tp==='movie'?'FILM':tp==='show'?'SHOW':tp==='season'?'SSN':'EP';const t=i.grandparentTitle?`${i.grandparentTitle} - ${i.title}`:i.parentTitle&&i.title?`${i.parentTitle} - ${i.title}`:i.title||'?';return `<div class="recent-item"><span class="recent-badge ${bc}">${bl}</span><span class="recent-title">${t}</span><span class="recent-year">${i.year||''}</span></div>`;}).join('');}catch{document.getElementById('recent').innerHTML='<div class="empty">Could not fetch</div>';}}
+
+async function fetchLib(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library/sections?X-Plex-Token=${PLEX_TOKEN}`);const secs=xAttr(xml,'Directory');const stats=await Promise.all(secs.filter(s=>s.key).map(async s=>{try{const x2=await httpGet(NAS_IP,PLEX_PORT,`/library/sections/${s.key}/all?X-Plex-Token=${PLEX_TOKEN}&X-Plex-Container-Start=0&X-Plex-Container-Size=0`);const m=x2.match(/totalSize="(\d+)"/);return{count:m?parseInt(m[1]):0,type:s.type};}catch{return{count:0,type:s.type};}}));const mov=stats.filter(s=>s.type==='movie').reduce((a,s)=>a+s.count,0);const shw=stats.filter(s=>s.type==='show').reduce((a,s)=>a+s.count,0);document.getElementById('libStats').innerHTML=`<div class="lib-stat"><div class="lib-count">${mov.toLocaleString()}</div><div class="lib-label">Movies</div></div><div class="lib-stat"><div class="lib-count">${shw.toLocaleString()}</div><div class="lib-label">Shows</div></div><div class="lib-stat"><div class="lib-count">${(mov+shw).toLocaleString()}</div><div class="lib-label">Total</div></div>`;}catch{}}
+
+async function refreshAll(){flashRefresh();await Promise.allSettled([fetchStreams(),fetchPipeline(),fetchServices(),fetchRecent(),fetchLib()]);}
+
+// ─── Init ───
+(async()=>{
+  const sv=await ipcRenderer.invoke('load-services');if(sv&&Array.isArray(sv))activeSvc=sv;
+  const rt=await ipcRenderer.invoke('load-ratios');if(rt)ratios={...defaultRatios,...rt};
+  applyRatios();
+  refreshAll();
+})();
+setInterval(refreshAll,REFRESH_MS);
+
+// Fix: first card-handle between speed(fixed) and grow-0 — remove resize behavior
+document.querySelector('.card-handle[data-above="0"][data-below="0"]').style.cursor='default';
+document.querySelector('.card-handle[data-above="0"][data-below="0"]').style.pointerEvents='none';
+document.querySelector('.card-handle[data-above="0"][data-below="0"]').querySelector('.card-handle-bar').style.display='none';
+// Same for bottom handle (above grow-3, below 99)
+document.querySelector('.card-handle[data-above="3"][data-below="99"]').style.cursor='default';
+document.querySelector('.card-handle[data-above="3"][data-below="99"]').style.pointerEvents='none';
+document.querySelector('.card-handle[data-above="3"][data-below="99"]').querySelector('.card-handle-bar').style.display='none';
+</script>
+</body>
+</html>
