@@ -234,6 +234,24 @@ ipcMain.on('open-url', (ev, url) => { if (url) shell.openExternal(url); });
 ipcMain.on('run-speedtest', () => runSpeedTest());
 ipcMain.handle('get-cached-speed', () => readJSON(FILES.speed));
 
+// ─── Desktop icons toggle ───
+let desktopIconsVisible = true;
+ipcMain.on('toggle-desktop-icons', () => {
+  desktopIconsVisible = !desktopIconsVisible;
+  const { execSync } = require('child_process');
+  try {
+    // Toggle desktop icons via registry + explorer refresh
+    const val = desktopIconsVisible ? 0 : 1;
+    execSync(`reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced" /v HideIcons /t REG_DWORD /d ${val} /f`, { windowsHide: true });
+    // Send F5 to desktop to refresh
+    execSync(`powershell -NoProfile -Command "& { $shell = New-Object -ComObject Shell.Application; $shell.Windows() | Where-Object { $_.Name -eq 'File Explorer' } | ForEach-Object { $_.Refresh() }; [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null }"`, { windowsHide: true, timeout: 5000 });
+    // Fallback: toggle via SendMessage to Progman
+    execSync(`powershell -NoProfile -Command "Add-Type -Name W -Namespace Win32 -MemberDefinition '[DllImport(\"user32.dll\")] public static extern IntPtr FindWindow(string c, string w); [DllImport(\"user32.dll\")] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr a, string c, string w); [DllImport(\"user32.dll\")] public static extern int SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'; $p = [Win32.W]::FindWindow('Progman','Program Manager'); $s = [Win32.W]::FindWindowEx($p,[IntPtr]::Zero,'SHELLDLL_DefView',''); if($s -eq [IntPtr]::Zero){(Get-Process explorer).MainWindowHandle | ForEach-Object { $w = [Win32.W]::FindWindowEx($_,[IntPtr]::Zero,'SHELLDLL_DefView',''); if($w -ne [IntPtr]::Zero){$s=$w} }}; $d = [Win32.W]::FindWindowEx($s,[IntPtr]::Zero,'SysListView32','FolderView'); [Win32.W]::SendMessage($d,0x111,[IntPtr]::new(29698),[IntPtr]::Zero)"`, { windowsHide: true, timeout: 5000 });
+  } catch (e) {}
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop-icons-state', desktopIconsVisible);
+});
+ipcMain.handle('get-desktop-icons-state', () => desktopIconsVisible);
+
 function runSpeedTest() {
   if (!fs.existsSync(FILES.exe)) { send('speedtest-results', { error: 'not found' }); return; }
   send('speedtest-results', { running: true });

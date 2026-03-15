@@ -139,17 +139,17 @@
   .speed-running .speed-value{animation:speedPulse 1.2s ease infinite;color:var(--text-dim)!important}
 
   /* Steam */
-  .steam-btns{display:flex;gap:4px;margin-bottom:6px}
+  .steam-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px}
   .steam-btn{
-    display:flex;align-items:center;justify-content:center;gap:5px;
-    padding:7px;background:var(--surface);border:1px solid var(--border);border-radius:var(--cr);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:8px 4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--cr);
     cursor:pointer;transition:all .15s;color:var(--text-dim);
   }
   .steam-btn:hover{border-color:var(--cyan);color:var(--text-bright);background:var(--surface2);box-shadow:0 0 8px rgba(0,200,255,0.08)}
   .steam-btn:active{transform:scale(.97)}
-  .steam-btn-main{flex:1;font-family:'Orbitron',sans-serif;font-size:8px;font-weight:600;letter-spacing:2px;text-transform:uppercase}
-  .steam-btn-icon{width:32px;font-size:12px;font-weight:700}
-  .steam-btn-label{font-size:7px;margin-top:1px;opacity:.6;letter-spacing:1px}
+  .steam-btn-icon{font-size:16px;font-weight:700;line-height:1;border:1.5px solid currentColor;border-radius:3px;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+  .steam-btn-tv{font-size:13px;line-height:1}
+  .steam-btn-label{font-size:6px;letter-spacing:1.5px;text-transform:uppercase;opacity:.5;font-family:'Orbitron',sans-serif}
   .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:var(--surface);border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:all .15s;margin-bottom:2px}
   .steam-game:hover{border-color:var(--border-glow);background:var(--surface2);transform:translateX(2px)}
   .steam-game:active{transform:scale(.98)}
@@ -158,10 +158,12 @@
   .steam-game-dot{width:4px;height:4px;border-radius:50%;background:var(--cyan);flex-shrink:0;box-shadow:0 0 4px var(--cyan-glow)}
   .steam-drawer-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:4px;margin-top:3px;border-radius:var(--cr);cursor:pointer;font-size:8px;color:var(--text-dim);background:rgba(0,200,255,0.02);border:1px solid transparent;transition:all .15s;letter-spacing:.5px}
   .steam-drawer-btn:hover{border-color:var(--border-glow);color:var(--text)}
-  .steam-drawer{display:none;max-height:200px;overflow-y:auto;margin-top:3px}
+  .steam-drawer{display:none;position:absolute;left:0;right:0;bottom:100%;margin-bottom:2px;max-height:300px;overflow-y:auto;background:var(--bg);border:1px solid var(--border-glow);border-radius:var(--cr);padding:6px;z-index:40;box-shadow:0 -4px 20px rgba(0,0,0,0.5),0 0 10px rgba(0,200,255,0.05)}
   .steam-drawer.open{display:block}
   .steam-drawer::-webkit-scrollbar{width:2px} .steam-drawer::-webkit-scrollbar-track{background:transparent} .steam-drawer::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.15);border-radius:1px}
   .steam-drawer-arrow{transition:transform .2s;display:inline-block;font-size:7px}.steam-drawer-arrow.open{transform:rotate(180deg)}
+  .card[data-card-id="steam"] { overflow: visible; }
+  .card[data-card-id="steam"] .card-inner { position: relative; }
 
   /* Streams */
   .stream-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--cr);padding:7px 9px;margin-bottom:3px;position:relative;overflow:hidden}
@@ -257,11 +259,12 @@
       <div class="header-left"><div class="logo">U</div><span class="header-title">Unraid NAS</span></div>
       <div class="header-right">
         <div class="refresh-dot" id="refreshDot"></div>
+        <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
         <span class="header-time" id="clock"></span>
+        <div class="hdr-btn" id="desktopBtn" onclick="toggleDesktopIcons()" title="Toggle desktop icons">&#x1F4C1;</div>
         <div class="hdr-btn" id="lockBtn" onclick="toggleLock()" title="Lock">&#x1F513;</div>
         <div class="hdr-btn" id="fontBtn" onclick="toggleFontMode()" title="Font size">A</div>
         <div class="hdr-btn" id="reorderBtn" onclick="toggleCardReorder()" title="Reorder cards">&#x2B0D;</div>
-        <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
         <div class="hdr-btn close" onclick="window.close()" title="Close">&#x2715;</div>
       </div>
     </div>
@@ -297,13 +300,24 @@
     <div class="font-controls"><div class="font-btn" onclick="scaleCard('steam',-1)">-</div><div class="font-pct" id="fpct-steam">100%</div><div class="font-btn" onclick="scaleCard('steam',1)">+</div></div>
     <div class="card-inner">
       <div class="section-header">
-        <div class="section-icon" style="border-color:rgba(102,192,244,0.2);color:#66c0f4;">&#x2B22;</div>
+        <div class="section-icon" style="border-color:rgba(102,192,244,0.2);padding:1px;">
+          <svg viewBox="0 0 32 32" width="11" height="11" fill="var(--text)"><path d="M16 0C7.61 0 .73 6.44.06 14.56l8.63 3.56c.73-.5 1.62-.79 2.57-.79.09 0 .17 0 .25.01l3.84-5.57v-.08c0-3.42 2.78-6.2 6.2-6.2s6.2 2.78 6.2 6.2-2.78 6.2-6.2 6.2h-.14l-5.48 3.91c0 .06.01.12.01.18 0 2.57-2.09 4.66-4.66 4.66-2.28 0-4.17-1.64-4.58-3.8L.14 19.87C1.87 27.05 8.31 32 16 32c8.84 0 16-7.16 16-16S24.84 0 16 0zm-4.93 24.88l-1.96-.81c.35.72.96 1.32 1.76 1.64 1.72.7 3.68-.13 4.38-1.85.34-.83.34-1.74 0-2.57-.34-.83-.99-1.48-1.82-1.82-.83-.33-1.71-.32-2.48-.03l2.02.84c1.27.52 1.87 1.97 1.35 3.24-.53 1.27-1.98 1.87-3.25 1.36zm10.48-13.19c0-2.28-1.86-4.14-4.14-4.14-2.28 0-4.14 1.86-4.14 4.14 0 2.28 1.86 4.14 4.14 4.14 2.28 0 4.14-1.86 4.14-4.14zm-7.24.01c0-1.72 1.39-3.11 3.11-3.11s3.11 1.39 3.11 3.11-1.39 3.11-3.11 3.11-3.11-1.39-3.11-3.11z"/></svg>
+        </div>
         <span class="section-label">Steam</span>
       </div>
       <div class="steam-btns">
-        <div class="steam-btn steam-btn-icon" onclick="launchSteam('steam://open/minigameslist')" title="Small Mode"><b>S</b><div class="steam-btn-label">small</div></div>
-        <div class="steam-btn steam-btn-main" onclick="launchSteam('steam://open/games')">&#x2B22; Library</div>
-        <div class="steam-btn steam-btn-icon" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture">&#x1F4FA;<div class="steam-btn-label">tv</div></div>
+        <div class="steam-btn" onclick="launchSteam('steam://open/minigameslist')" title="Small Mode">
+          <div class="steam-btn-icon">S</div>
+          <div class="steam-btn-label">Small</div>
+        </div>
+        <div class="steam-btn" onclick="launchSteam('steam://open/games')" title="Library">
+          <div class="steam-btn-icon">L</div>
+          <div class="steam-btn-label">Library</div>
+        </div>
+        <div class="steam-btn" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture">
+          <div class="steam-btn-tv">&#x1F4FA;</div>
+          <div class="steam-btn-label">TV</div>
+        </div>
       </div>
       <div id="steamRecent"><div class="empty">Scanning...</div></div>
       <div class="steam-drawer-btn" onclick="toggleSteamDrawer()"><span class="steam-drawer-arrow" id="steamArrow">&#x25BC;</span><span id="steamDrawerLabel">All Games</span></div>
@@ -403,26 +417,27 @@ function openService(u){if(u)ipcRenderer.send('open-url',u);}
 function buildCards() {
   const area = document.getElementById('scrollArea');
   area.innerHTML = '';
-  const growCards = cardOrder.filter(id => ['playing','pipeline','services','recent'].includes(id));
-  cardOrder.forEach((id, i) => {
+
+  let prevGrowVal = null;
+  cardOrder.forEach((id) => {
     const tpl = document.getElementById('tpl-' + id);
     if (!tpl) return;
     const node = tpl.content.cloneNode(true);
-    area.appendChild(node);
-    // Add card-handle between growable cards
-    if (i < cardOrder.length - 1) {
-      const nextId = cardOrder[i + 1];
-      const curGrow = growCards.indexOf(id);
-      const nextGrow = growCards.indexOf(nextId);
-      if (curGrow >= 0 && nextGrow >= 0) {
-        const handle = document.createElement('div');
-        handle.className = 'card-handle';
-        handle.dataset.above = curGrow;
-        handle.dataset.below = nextGrow;
-        handle.innerHTML = '<div class="card-handle-bar"></div>';
-        area.appendChild(handle);
-      }
+    const card = node.querySelector('.card');
+    const growVal = card ? card.getAttribute('data-grow') : null;
+
+    // Add handle between consecutive grow cards
+    if (growVal !== null && prevGrowVal !== null) {
+      const handle = document.createElement('div');
+      handle.className = 'card-handle';
+      handle.dataset.above = prevGrowVal;
+      handle.dataset.below = growVal;
+      handle.innerHTML = '<div class="card-handle-bar"></div>';
+      area.appendChild(handle);
     }
+
+    area.appendChild(node);
+    prevGrowVal = growVal !== null ? growVal : null;
   });
   setupCardHandleListeners();
 }
@@ -588,6 +603,16 @@ async function fetchPipeline(){try{const d=JSON.parse(await httpGet(NAS_IP,MM_PO
 async function fetchRecent(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library/recentlyAdded?X-Plex-Token=${PLEX_TOKEN}&X-Plex-Container-Size=8`);const it=[...xAttr(xml,'Video'),...xAttr(xml,'Directory')].slice(0,7);const el=document.getElementById('recent');if(!el)return;if(!it.length){el.innerHTML='<div class="empty">No recent</div>';return;}el.innerHTML=it.map(i=>{const tp=i.type||'movie';const bc=tp==='movie'?'badge-movie':tp==='show'?'badge-show':'badge-episode';const bl=tp==='movie'?'FILM':tp==='show'?'SHOW':tp==='season'?'SSN':'EP';const t=i.grandparentTitle?`${i.grandparentTitle} - ${i.title}`:i.parentTitle&&i.title?`${i.parentTitle} - ${i.title}`:i.title||'?';return `<div class="recent-item"><span class="recent-badge ${bc}">${bl}</span><span class="recent-title">${t}</span><span class="recent-year">${i.year||''}</span></div>`;}).join('');}catch{const el=document.getElementById('recent');if(el)el.innerHTML='<div class="empty">Could not fetch</div>';}}
 async function fetchLib(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library/sections?X-Plex-Token=${PLEX_TOKEN}`);const secs=xAttr(xml,'Directory');const stats=await Promise.all(secs.filter(s=>s.key).map(async s=>{try{const x2=await httpGet(NAS_IP,PLEX_PORT,`/library/sections/${s.key}/all?X-Plex-Token=${PLEX_TOKEN}&X-Plex-Container-Start=0&X-Plex-Container-Size=0`);const m=x2.match(/totalSize="(\d+)"/);return{count:m?parseInt(m[1]):0,type:s.type};}catch{return{count:0,type:s.type};}}));const mov=stats.filter(s=>s.type==='movie').reduce((a,s)=>a+s.count,0);const shw=stats.filter(s=>s.type==='show').reduce((a,s)=>a+s.count,0);const el=document.getElementById('libStats');if(el)el.innerHTML=`<div class="lib-stat"><div class="lib-count">${mov.toLocaleString()}</div><div class="lib-label">Movies</div></div><div class="lib-stat"><div class="lib-count">${shw.toLocaleString()}</div><div class="lib-label">Shows</div></div><div class="lib-stat"><div class="lib-count">${(mov+shw).toLocaleString()}</div><div class="lib-label">Total</div></div>`;}catch{}}
 async function refreshAll(){flashRefresh();await Promise.allSettled([fetchStreams(),fetchPipeline(),fetchServices(),fetchRecent(),fetchLib()]);}
+
+// ─── Desktop icons toggle ───
+let desktopIconsOn = true;
+function toggleDesktopIcons() { ipcRenderer.send('toggle-desktop-icons'); }
+ipcRenderer.on('desktop-icons-state', (ev, v) => {
+  desktopIconsOn = v;
+  const btn = document.getElementById('desktopBtn');
+  btn.style.color = v ? 'var(--text-dim)' : 'var(--cyan)';
+  btn.style.borderColor = v ? 'transparent' : 'rgba(0,200,255,0.2)';
+});
 
 // ─── Font scaling ───
 let fontMode=false;
