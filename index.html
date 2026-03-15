@@ -157,10 +157,10 @@
   /* Steam */
   .section-label[onclick]{cursor:pointer;transition:color .15s}
   .section-label[onclick]:hover{color:var(--cyan)}
-  .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:var(--surface);border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:all .15s;margin-bottom:2px;outline:none;-webkit-tap-highlight-color:transparent}
-  .steam-game:hover{border-color:var(--border-glow);background:var(--surface2);transform:translateX(2px)}
-  .steam-game:active{transform:scale(.98)}
-  .steam-game:focus{outline:none}
+  .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:transparent;border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:background .15s,border-color .15s;margin-bottom:2px;outline:none !important;-webkit-tap-highlight-color:transparent !important}
+  .steam-game:hover{border-color:var(--border-glow);background:var(--surface2)}
+  .steam-game:active{opacity:.7}
+  .steam-game:focus{outline:none !important}
   .steam-game-name{font-size:9px;font-weight:400;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
   .steam-game-time{font-size:7px;color:var(--text-dim);flex-shrink:0}
   .steam-game-dot{width:4px;height:4px;border-radius:50%;background:var(--cyan);flex-shrink:0;box-shadow:0 0 4px var(--cyan-glow)}
