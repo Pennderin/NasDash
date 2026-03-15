@@ -597,9 +597,7 @@ function timeAgo(ts){if(!ts)return'';const d=Math.floor(Date.now()/1000-ts);if(d
 function formatSize(b){return b>1e9?(b/1e9).toFixed(1)+' GB':(b/1e6).toFixed(0)+' MB';}
 function launchSteam(u){ipcRenderer.send('open-url',u);}
 function launchSteamBig(){
-  // Exit small mode and open main window, then navigate to games
-  launchSteam('steam://open/main');
-  setTimeout(()=>launchSteam('steam://open/games'), 500);
+  launchSteam('steam://open/largegameslist');
 }
 let steamDrawerOpen=false,allSteamGames=[];
 function toggleSteamDrawer(){
