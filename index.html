@@ -705,6 +705,7 @@ ipcRenderer.on('display-changed',async()=>{const sc=await ipcRenderer.invoke('lo
   refreshAll();
 })();
 setInterval(refreshAll,REFRESH_MS);
+setInterval(fetchPipeline,3000); // pipeline updates every 3s
 setInterval(loadSteamGames,5*60*1000);
 </script>
 </body>
