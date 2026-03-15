@@ -17,6 +17,7 @@ const FILES = {
   bounds:   path.join(stateDir, 'display-bounds.json'),
   ratios:   path.join(stateDir, 'card-ratios.json'),
   scales:   path.join(stateDir, 'font-scales.json'),
+  order:    path.join(stateDir, 'card-order.json'),
   state:    path.join(stateDir, 'widget-state.json'),
 };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -223,6 +224,10 @@ ipcMain.on('save-scales', (ev, d) => {
 // ─── Services ───
 ipcMain.handle('load-services', () => readJSON(FILES.services));
 ipcMain.on('save-services', (ev, d) => writeJSON(FILES.services, d));
+
+// ─── Card order ───
+ipcMain.handle('load-order', () => readJSON(FILES.order));
+ipcMain.on('save-order', (ev, d) => writeJSON(FILES.order, d));
 
 // ─── Speed test ───
 ipcMain.on('open-url', (ev, url) => { if (url) shell.openExternal(url); });
