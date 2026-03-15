@@ -150,16 +150,8 @@
   .speed-running .speed-value{animation:speedPulse 1.2s ease infinite;color:var(--text-dim)!important}
 
   /* Steam */
-  .steam-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px}
-  .steam-btn{
-    display:flex;align-items:center;justify-content:center;
-    padding:5px 4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--cr);
-    cursor:pointer;transition:all .15s;color:var(--text-dim);
-  }
-  .steam-btn:hover{border-color:var(--cyan);color:var(--text-bright);background:var(--surface2);box-shadow:0 0 8px rgba(0,200,255,0.08)}
-  .steam-btn:active{transform:scale(.97)}
-  .steam-btn-icon{font-size:14px;font-weight:700;line-height:1;border:1.5px solid currentColor;border-radius:3px;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
-  .steam-btn-tv{font-size:13px;line-height:1}
+  .section-label[onclick]{cursor:pointer;transition:color .15s}
+  .section-label[onclick]:hover{color:var(--cyan)}
   .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:var(--surface);border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:all .15s;margin-bottom:2px}
   .steam-game:hover{border-color:var(--border-glow);background:var(--surface2);transform:translateX(2px)}
   .steam-game:active{transform:scale(.98)}
@@ -247,12 +239,13 @@
   .storage-details{display:flex;justify-content:space-between;margin-top:3px;font-size:7px;color:var(--text-dim)}
   .empty{text-align:center;padding:7px 0;font-size:9px;color:var(--text-dim);opacity:.4}
 
-  /* Font controls */
-  .font-controls{display:none;position:absolute;top:3px;right:5px;z-index:10;gap:2px;align-items:center}
+  /* Font controls - T (title) and B (body) */
+  .font-controls{display:none;position:absolute;top:3px;right:5px;z-index:10;gap:3px;align-items:center}
   body.font-mode .font-controls{display:flex}
-  .font-btn{cursor:pointer;width:14px;height:14px;display:flex;align-items:center;justify-content:center;border-radius:2px;font-size:9px;font-weight:700;color:var(--text-dim);background:rgba(0,200,255,0.03);border:1px solid var(--border);transition:all .15s}
-  .font-btn:hover{border-color:var(--border-glow);color:var(--text)}
-  .font-pct{font-size:7px;color:var(--text-dim);min-width:24px;text-align:center;opacity:.5}
+  .fc-group{display:flex;align-items:center;gap:1px;background:rgba(0,200,255,0.02);border:1px solid var(--border);border-radius:3px;padding:1px 2px}
+  .fc-label{font-size:7px;font-weight:700;color:var(--text-dim);width:10px;text-align:center}
+  .font-btn{cursor:pointer;width:12px;height:12px;display:flex;align-items:center;justify-content:center;border-radius:2px;font-size:9px;font-weight:700;color:var(--text-dim);transition:all .15s}
+  .font-btn:hover{color:var(--cyan)}
   .card.scalable{position:relative}
 </style>
 </head>
@@ -296,7 +289,7 @@
 <template id="tpl-speed">
   <div class="card scalable" data-card-id="speed" data-scale-id="speed">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('speed',-1)">-</div><div class="font-pct" id="fpct-speed">100%</div><div class="font-btn" onclick="scaleCard('speed',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('speed','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('speed','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('speed','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('speed','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header">
         <div class="section-icon" style="border-color:rgba(0,200,255,0.2);color:var(--cyan);">&#x21C5;</div>
@@ -316,18 +309,17 @@
 <template id="tpl-steam">
   <div class="card grow scalable" data-card-id="steam" data-grow="4" data-scale-id="steam">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('steam',-1)">-</div><div class="font-pct" id="fpct-steam">100%</div><div class="font-btn" onclick="scaleCard('steam',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('steam','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('steam','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('steam','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('steam','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header">
         <div class="section-icon" style="border-color:rgba(102,192,244,0.2);padding:1px;">
           <svg viewBox="0 0 32 32" width="11" height="11" fill="var(--text)"><path d="M16 0C7.61 0 .73 6.44.06 14.56l8.63 3.56c.73-.5 1.62-.79 2.57-.79.09 0 .17 0 .25.01l3.84-5.57v-.08c0-3.42 2.78-6.2 6.2-6.2s6.2 2.78 6.2 6.2-2.78 6.2-6.2 6.2h-.14l-5.48 3.91c0 .06.01.12.01.18 0 2.57-2.09 4.66-4.66 4.66-2.28 0-4.17-1.64-4.58-3.8L.14 19.87C1.87 27.05 8.31 32 16 32c8.84 0 16-7.16 16-16S24.84 0 16 0zm-4.93 24.88l-1.96-.81c.35.72.96 1.32 1.76 1.64 1.72.7 3.68-.13 4.38-1.85.34-.83.34-1.74 0-2.57-.34-.83-.99-1.48-1.82-1.82-.83-.33-1.71-.32-2.48-.03l2.02.84c1.27.52 1.87 1.97 1.35 3.24-.53 1.27-1.98 1.87-3.25 1.36zm10.48-13.19c0-2.28-1.86-4.14-4.14-4.14-2.28 0-4.14 1.86-4.14 4.14 0 2.28 1.86 4.14 4.14 4.14 2.28 0 4.14-1.86 4.14-4.14zm-7.24.01c0-1.72 1.39-3.11 3.11-3.11s3.11 1.39 3.11 3.11-1.39 3.11-3.11 3.11-3.11-1.39-3.11-3.11z"/></svg>
         </div>
-        <span class="section-label">Steam</span>
-      </div>
-      <div class="steam-btns">
-        <div class="steam-btn" onclick="launchSteam('steam://open/minigameslist')" title="Small Mode"><div class="steam-btn-icon">S</div></div>
-        <div class="steam-btn" onclick="launchSteam('steam://open/games')" title="Library"><div class="steam-btn-icon">L</div></div>
-        <div class="steam-btn" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture"><div class="steam-btn-tv">&#x1F4FA;</div></div>
+        <span class="section-label" style="cursor:pointer;" onclick="launchSteam('steam://open/games')" title="Open Library">Steam</span>
+        <div class="section-actions">
+          <div class="section-btn" onclick="launchSteam('steam://open/minigameslist')" title="Small Mode" style="font-size:8px;font-weight:700;">S</div>
+          <div class="section-btn" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture" style="font-size:9px;">&#x1F4FA;</div>
+        </div>
       </div>
       <div class="card-content" id="steamRecent"><div class="empty">Scanning...</div></div>
       <div class="steam-drawer-btn" onclick="toggleSteamDrawer()"><span class="steam-drawer-arrow" id="steamArrow">&#x25BC;</span><span id="steamDrawerLabel">All Games</span></div>
@@ -338,7 +330,7 @@
 <template id="tpl-playing">
   <div class="card grow scalable" data-card-id="playing" data-grow="0" data-scale-id="playing">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('playing',-1)">-</div><div class="font-pct" id="fpct-playing">100%</div><div class="font-btn" onclick="scaleCard('playing',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('playing','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('playing','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('playing','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('playing','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header"><div class="section-icon" style="border-color:rgba(0,255,136,0.2);color:var(--green);">&#x25B6;</div><span class="section-label">Now Playing</span><span class="section-count" id="streamCount"></span></div>
       <div class="card-content" id="streams"><div class="empty">Loading...</div></div>
@@ -349,7 +341,7 @@
 <template id="tpl-pipeline">
   <div class="card grow scalable" data-card-id="pipeline" data-grow="1" data-scale-id="pipeline">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('pipeline',-1)">-</div><div class="font-pct" id="fpct-pipeline">100%</div><div class="font-btn" onclick="scaleCard('pipeline',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('pipeline','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('pipeline','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('pipeline','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('pipeline','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header"><div class="section-icon" style="border-color:rgba(51,136,255,0.2);color:var(--blue);">&#x2B07;</div><span class="section-label">Pipeline</span><span class="section-count" id="jobCount"></span></div>
       <div class="card-content" id="pipeline"><div class="empty">Loading...</div></div>
@@ -360,7 +352,7 @@
 <template id="tpl-services">
   <div class="card grow scalable" data-card-id="services" data-grow="2" data-scale-id="services">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('services',-1)">-</div><div class="font-pct" id="fpct-services">100%</div><div class="font-btn" onclick="scaleCard('services',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('services','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('services','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('services','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('services','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header"><div class="section-icon" style="border-color:rgba(0,200,255,0.2);color:var(--cyan);">&#x25C6;</div><span class="section-label">Services</span>
         <div class="section-actions"><div class="section-btn" id="svcReorderBtn" onclick="toggleReorderMode()" title="Reorder">&#x21C5;</div><div class="section-btn" id="svcRemoveBtn" onclick="toggleRemoveMode()" title="Remove">&#x2212;</div><div class="section-btn" onclick="openServicePicker()" title="Add">&#x002B;</div></div>
@@ -373,7 +365,7 @@
 <template id="tpl-recent">
   <div class="card grow scalable" data-card-id="recent" data-grow="3" style="flex:2;" data-scale-id="recent">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('recent',-1)">-</div><div class="font-pct" id="fpct-recent">100%</div><div class="font-btn" onclick="scaleCard('recent',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('recent','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('recent','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('recent','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('recent','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header"><div class="section-icon" style="border-color:rgba(170,85,255,0.2);color:var(--purple);">&#x2605;</div><span class="section-label">Recently Added</span></div>
       <div class="card-content" id="recent"><div class="empty">Loading...</div></div>
@@ -384,7 +376,7 @@
 <template id="tpl-library">
   <div class="card scalable" data-card-id="library" data-scale-id="library">
     <div class="card-drag-handle">&#x2261;&#x2261;&#x2261;</div>
-    <div class="font-controls"><div class="font-btn" onclick="scaleCard('library',-1)">-</div><div class="font-pct" id="fpct-library">100%</div><div class="font-btn" onclick="scaleCard('library',1)">+</div></div>
+    <div class="font-controls"><div class="fc-group"><div class="font-btn" onclick="scaleCard('library','t',-1)">-</div><div class="fc-label">T</div><div class="font-btn" onclick="scaleCard('library','t',1)">+</div></div><div class="fc-group"><div class="font-btn" onclick="scaleCard('library','b',-1)">-</div><div class="fc-label">B</div><div class="font-btn" onclick="scaleCard('library','b',1)">+</div></div></div>
     <div class="card-inner">
       <div class="section-header"><div class="section-icon" style="border-color:rgba(255,136,0,0.2);color:var(--orange);">&#x25A4;</div><span class="section-label">Library</span></div>
       <div class="lib-grid" id="libStats"><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Movies</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Shows</div></div><div class="lib-stat"><div class="lib-count">--</div><div class="lib-label">Total</div></div></div>
@@ -654,22 +646,43 @@ function toggleDesktopIcons() {
 
 // ─── Font scaling ───
 let fontMode=false;
-let fontScales={speed:100,steam:100,playing:100,pipeline:100,services:100,recent:100,library:100};
+let fontScales={speed:{t:100,b:100},steam:{t:100,b:100},playing:{t:100,b:100},pipeline:{t:100,b:100},services:{t:100,b:100},recent:{t:100,b:100},library:{t:100,b:100}};
 function toggleFontMode(){
   fontMode=!fontMode;
   document.body.classList.toggle('font-mode',fontMode);
   const st=document.getElementById('fontState');if(st)st.textContent=fontMode?'on':'off';
 }
-function scaleCard(id,dir){fontScales[id]=Math.max(50,Math.min(200,fontScales[id]+dir*5));applyScale(id);ipcRenderer.send('save-scales',fontScales);}
-function applyScale(id){const c=document.querySelector(`.card[data-scale-id="${id}"]`);if(!c)return;const inner=c.querySelector('.card-inner');if(inner)inner.style.zoom=(fontScales[id]/100).toString();const p=document.getElementById(`fpct-${id}`);if(p)p.textContent=`${fontScales[id]}%`;}
+function scaleCard(id,which,dir){
+  if(!fontScales[id])fontScales[id]={t:100,b:100};
+  fontScales[id][which]=Math.max(50,Math.min(200,fontScales[id][which]+dir*5));
+  applyScale(id);
+  ipcRenderer.send('save-scales',fontScales);
+}
+function applyScale(id){
+  const c=document.querySelector(`.card[data-scale-id="${id}"]`);
+  if(!c)return;
+  const s=fontScales[id]||{t:100,b:100};
+  const header=c.querySelector('.section-header');
+  if(header)header.style.zoom=(s.t/100).toString();
+  // Body = everything after the header
+  const inner=c.querySelector('.card-inner');
+  if(inner){
+    Array.from(inner.children).forEach(el=>{
+      if(!el.classList.contains('section-header')&&!el.classList.contains('font-controls')){
+        el.style.zoom=(s.b/100).toString();
+      }
+    });
+  }
+}
 function applyAllScales(){for(const id of Object.keys(fontScales))applyScale(id);}
-ipcRenderer.on('display-changed',async()=>{const sc=await ipcRenderer.invoke('load-scales');fontScales=sc?{speed:100,steam:100,playing:100,pipeline:100,services:100,recent:100,library:100,...sc}:{speed:100,steam:100,playing:100,pipeline:100,services:100,recent:100,library:100};applyAllScales();});
+function defaultScales(){return{speed:{t:100,b:100},steam:{t:100,b:100},playing:{t:100,b:100},pipeline:{t:100,b:100},services:{t:100,b:100},recent:{t:100,b:100},library:{t:100,b:100}};}
+ipcRenderer.on('display-changed',async()=>{const sc=await ipcRenderer.invoke('load-scales');fontScales=sc?{...defaultScales(),...sc}:defaultScales();applyAllScales();});
 
 // ─── Init ───
 (async()=>{
   const sv=await ipcRenderer.invoke('load-services');if(sv&&Array.isArray(sv))activeSvc=sv;
   const rt=await ipcRenderer.invoke('load-ratios');if(rt)ratios={...defaultRatios,...rt};
-  const sc=await ipcRenderer.invoke('load-scales');if(sc)fontScales={...fontScales,...sc};
+  const sc=await ipcRenderer.invoke('load-scales');if(sc)fontScales={...defaultScales(),...sc};
   const ord=await ipcRenderer.invoke('load-order');if(ord&&Array.isArray(ord))cardOrder=ord;
   buildCards();
   applyRatios();
