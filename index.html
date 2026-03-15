@@ -118,7 +118,7 @@
 
   /* Caret dropdown */
   .caret-wrap{position:relative}
-  .caret-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border-glow);border-radius:var(--cr);padding:4px;z-index:30;min-width:90px;box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 8px rgba(0,200,255,0.04)}
+  .caret-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border-glow);border-radius:var(--cr);padding:4px;z-index:100;min-width:90px;box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 8px rgba(0,200,255,0.04)}
   .caret-menu.open{display:block}
   .caret-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:2px;cursor:pointer;font-size:8px;color:var(--text-dim);transition:all .12s;white-space:nowrap}
   .caret-item:hover{background:rgba(0,200,255,0.04);color:var(--text)}
@@ -268,7 +268,7 @@
 <div class="resize-edge bottom-right" data-edge="bottom-right"></div>
 
 <div class="widget-wrap">
-  <div class="card" style="margin-bottom:4px;">
+  <div class="card" style="margin-bottom:4px;z-index:50;position:relative;overflow:visible;">
     <div class="header">
       <div class="header-left"><div class="logo">U</div><span class="header-title">Unraid NAS</span></div>
       <div class="header-right">
