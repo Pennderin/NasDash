@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+  *:focus { outline: none; }
+  ::selection { background: transparent; }
 
   :root {
     --bg: rgba(4, 8, 16, 0.88);
@@ -152,14 +154,16 @@
   /* Steam */
   .section-label[onclick]{cursor:pointer;transition:color .15s}
   .section-label[onclick]:hover{color:var(--cyan)}
-  .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:var(--surface);border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:all .15s;margin-bottom:2px}
+  .steam-game{display:flex;align-items:center;gap:7px;padding:4px 7px;background:var(--surface);border:1px solid transparent;border-radius:var(--cr);cursor:pointer;transition:all .15s;margin-bottom:2px;outline:none;-webkit-tap-highlight-color:transparent}
   .steam-game:hover{border-color:var(--border-glow);background:var(--surface2);transform:translateX(2px)}
   .steam-game:active{transform:scale(.98)}
+  .steam-game:focus{outline:none}
   .steam-game-name{font-size:9px;font-weight:400;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
   .steam-game-time{font-size:7px;color:var(--text-dim);flex-shrink:0}
   .steam-game-dot{width:4px;height:4px;border-radius:50%;background:var(--cyan);flex-shrink:0;box-shadow:0 0 4px var(--cyan-glow)}
-  .steam-drawer-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:4px;margin-top:3px;border-radius:var(--cr);cursor:pointer;font-size:8px;color:var(--text-dim);background:rgba(0,200,255,0.02);border:1px solid transparent;transition:all .15s;letter-spacing:.5px;flex-shrink:0}
+  .steam-drawer-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:4px;margin-top:3px;border-radius:var(--cr);cursor:pointer;font-size:8px;color:var(--text-dim);background:rgba(0,200,255,0.02);border:1px solid transparent;transition:all .15s;letter-spacing:.5px;flex-shrink:0;outline:none}
   .steam-drawer-btn:hover{border-color:var(--border-glow);color:var(--text)}
+  .steam-drawer-btn:focus{outline:none}
   .steam-drawer-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:45;background:rgba(0,4,10,0.6);backdrop-filter:blur(4px);padding:6px;align-items:center;justify-content:center}
   .steam-drawer-overlay.open{display:flex}
   .steam-drawer-panel{background:var(--bg);border:1px solid var(--border-glow);border-radius:var(--cr);padding:8px;width:100%;max-height:calc(100% - 12px);display:flex;flex-direction:column;box-shadow:0 0 20px rgba(0,200,255,0.06),0 8px 30px rgba(0,0,0,0.6)}
