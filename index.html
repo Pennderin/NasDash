@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-  *:focus { outline: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; outline: none !important; -webkit-tap-highlight-color: transparent !important; }
+  *:focus, *:focus-visible, *:focus-within { outline: none !important; box-shadow: none !important; }
   ::selection { background: transparent; }
+  ::-moz-focus-inner { border: 0; }
+  div, span { -webkit-user-select: none; }
 
   :root {
     --bg: rgba(4, 8, 16, 0.88);
@@ -70,7 +72,8 @@
   .card-inner { padding: 10px 12px; }
   .card.grow { flex: 1; min-height: 40px; display: flex; flex-direction: column; }
   .card.grow .card-inner { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .card.grow .card-content { flex: 1; min-height: 0; overflow-y: auto; }
+  .card.grow .card-content { flex: 1; min-height: 0; overflow-y: auto; outline: none !important; }
+  .card.grow .card-content:focus, .card.grow .card-content:focus-visible { outline: none !important; }
   .card.grow .card-content::-webkit-scrollbar{width:2px}
   .card.grow .card-content::-webkit-scrollbar-track{background:transparent}
   .card.grow .card-content::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.15);border-radius:1px}
@@ -404,6 +407,9 @@
 const http = require('http');
 const { ipcRenderer } = require('electron');
 
+// Kill all focus states globally after any click
+document.addEventListener('mousedown', () => { if (document.activeElement) document.activeElement.blur(); });
+
 const NAS_IP='192.168.0.190',PLEX_TOKEN='LAKWMV_Mz2oFF4w5yBWf',MM_PORT=9876,PLEX_PORT=32400,REFRESH_MS=30000;
 const DEFAULT_CARD_ORDER = ['speed','steam','playing','pipeline','services','recent','library'];
 let cardOrder = [...DEFAULT_CARD_ORDER];
@@ -601,11 +607,11 @@ function loadSteamGames(){
   const el=document.getElementById('steamRecent'),dr=document.getElementById('steamDrawer'),lb=document.getElementById('steamDrawerLabel'),title=document.getElementById('steamDrawerTitle');
   if(!el)return;
   const recent=allSteamGames.filter(g=>g.lastPlayed>0).slice(0,4);
-  el.innerHTML=recent.length?recent.map(g=>`<div class="steam-game" onclick="launchSteam('steam://rungameid/${g.appid}')"><div class="steam-game-dot"></div><span class="steam-game-name">${g.name}</span><span class="steam-game-time">${timeAgo(g.lastPlayed)}</span></div>`).join(''):'<div class="empty">No recent games</div>';
+  el.innerHTML=recent.length?recent.map(g=>`<div class="steam-game" tabindex="-1" onmousedown="this.blur()" onclick="launchSteam('steam://rungameid/${g.appid}');this.blur()"><div class="steam-game-dot"></div><span class="steam-game-name">${g.name}</span><span class="steam-game-time">${timeAgo(g.lastPlayed)}</span></div>`).join(''):'<div class="empty">No recent games</div>';
   const sorted=[...allSteamGames].sort((a,b)=>a.name.localeCompare(b.name));
   if(lb)lb.textContent=`All Games (${sorted.length})`;
   if(title)title.textContent=`All Games (${sorted.length})`;
-  if(dr)dr.innerHTML=sorted.map(g=>`<div class="steam-game" onclick="launchSteam('steam://rungameid/${g.appid}')" title="${formatSize(g.size)}"><div class="steam-game-dot"></div><span class="steam-game-name">${g.name}</span><span class="steam-game-time">${formatSize(g.size)}</span></div>`).join('');
+  if(dr)dr.innerHTML=sorted.map(g=>`<div class="steam-game" tabindex="-1" onmousedown="this.blur()" onclick="launchSteam('steam://rungameid/${g.appid}');this.blur()" title="${formatSize(g.size)}"><div class="steam-game-dot"></div><span class="steam-game-name">${g.name}</span><span class="steam-game-time">${formatSize(g.size)}</span></div>`).join('');
 }
 
 // ─── Services ───
