@@ -114,6 +114,17 @@
   .hdr-btn.lock-active{color:var(--orange);border-color:rgba(255,136,0,0.2)}
   .hdr-btn.font-active{color:var(--cyan);border-color:rgba(0,200,255,0.2)}
   .hdr-btn.reorder-active{color:var(--green);border-color:rgba(0,255,136,0.2)}
+  .hdr-btn.desktop-off{color:var(--cyan);border-color:rgba(0,200,255,0.2)}
+
+  /* Caret dropdown */
+  .caret-wrap{position:relative}
+  .caret-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border-glow);border-radius:var(--cr);padding:4px;z-index:30;min-width:90px;box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 8px rgba(0,200,255,0.04)}
+  .caret-menu.open{display:block}
+  .caret-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:2px;cursor:pointer;font-size:8px;color:var(--text-dim);transition:all .12s;white-space:nowrap}
+  .caret-item:hover{background:rgba(0,200,255,0.04);color:var(--text)}
+  .caret-item .ci-icon{width:14px;text-align:center;font-size:10px}
+  .caret-item .ci-label{flex:1}
+  .caret-item .ci-state{font-size:7px;opacity:.5}
 
   /* Section headers */
   .section-header{display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-shrink:0}
@@ -264,10 +275,15 @@
         <div class="refresh-dot" id="refreshDot"></div>
         <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
         <span class="header-time" id="clock"></span>
-        <div class="hdr-btn" id="desktopBtn" onclick="toggleDesktopIcons()" title="Toggle desktop icons">&#x1F4C1;</div>
-        <div class="hdr-btn" id="lockBtn" onclick="toggleLock()" title="Lock">&#x1F513;</div>
-        <div class="hdr-btn" id="fontBtn" onclick="toggleFontMode()" title="Font size">A</div>
-        <div class="hdr-btn" id="reorderBtn" onclick="toggleCardReorder()" title="Reorder cards">&#x2B0D;</div>
+        <div class="hdr-btn" id="desktopBtn" onclick="toggleDesktopIcons()" title="Desktop icons">&#x1F4C1;</div>
+        <div class="caret-wrap">
+          <div class="hdr-btn" id="caretBtn" onclick="toggleCaretMenu()" title="Settings">&#x2699;</div>
+          <div class="caret-menu" id="caretMenu">
+            <div class="caret-item" onclick="toggleLock()"><span class="ci-icon" id="lockIcon">&#x1F513;</span><span class="ci-label">Lock</span><span class="ci-state" id="lockState">off</span></div>
+            <div class="caret-item" onclick="toggleFontMode()"><span class="ci-icon">A</span><span class="ci-label">Font size</span><span class="ci-state" id="fontState">off</span></div>
+            <div class="caret-item" onclick="toggleCardReorder()"><span class="ci-icon">&#x2B0D;</span><span class="ci-label">Reorder</span><span class="ci-state" id="reorderState">off</span></div>
+          </div>
+        </div>
         <div class="hdr-btn close" onclick="window.close()" title="Close">&#x2715;</div>
       </div>
     </div>
@@ -478,7 +494,7 @@ let cardReorderMode = false;
 function toggleCardReorder() {
   cardReorderMode = !cardReorderMode;
   document.body.classList.toggle('reorder-mode', cardReorderMode);
-  document.getElementById('reorderBtn').classList.toggle('reorder-active', cardReorderMode);
+  const st=document.getElementById('reorderState');if(st)st.textContent=cardReorderMode?'on':'off';
 }
 
 let dragCardId = null;
@@ -533,10 +549,28 @@ new MutationObserver(() => {
   document.querySelectorAll('.card[data-card-id]').forEach(c => c.draggable = cardReorderMode);
 }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
+// ─── Caret settings menu ───
+function toggleCaretMenu() {
+  document.getElementById('caretMenu').classList.toggle('open');
+}
+// Close on click outside
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.caret-wrap');
+  if (wrap && !wrap.contains(e.target)) document.getElementById('caretMenu').classList.remove('open');
+});
+
 // ─── Lock ───
 function toggleLock(){ipcRenderer.send('toggle-lock');}
-ipcRenderer.on('lock-state',(ev,l)=>{isLocked=l;document.body.classList.toggle('locked',l);const b=document.getElementById('lockBtn');b.innerHTML=l?'&#x1F512;':'&#x1F513;';b.classList.toggle('lock-active',l);b.title=l?'Unlock':'Lock';});
-ipcRenderer.invoke('get-lock-state').then(l=>{isLocked=l;document.body.classList.toggle('locked',l);const b=document.getElementById('lockBtn');b.innerHTML=l?'&#x1F512;':'&#x1F513;';b.classList.toggle('lock-active',l);});
+ipcRenderer.on('lock-state',(ev,l)=>{
+  isLocked=l;document.body.classList.toggle('locked',l);
+  const ic=document.getElementById('lockIcon');if(ic)ic.innerHTML=l?'&#x1F512;':'&#x1F513;';
+  const st=document.getElementById('lockState');if(st)st.textContent=l?'on':'off';
+});
+ipcRenderer.invoke('get-lock-state').then(l=>{
+  isLocked=l;document.body.classList.toggle('locked',l);
+  const ic=document.getElementById('lockIcon');if(ic)ic.innerHTML=l?'&#x1F512;':'&#x1F513;';
+  const st=document.getElementById('lockState');if(st)st.textContent=l?'on':'off';
+});
 
 // ─── Collapse ───
 function toggleCollapse(){collapsed=!collapsed;document.body.classList.toggle('collapsed',collapsed);document.getElementById('collapseBtn').innerHTML=collapsed?'&#x25A1;':'&#x2014;';ipcRenderer.send(collapsed?'collapse-widget':'expand-widget');}
@@ -611,18 +645,21 @@ async function refreshAll(){flashRefresh();await Promise.allSettled([fetchStream
 
 // ─── Desktop icons toggle ───
 let desktopIconsOn = true;
-function toggleDesktopIcons() { ipcRenderer.send('toggle-desktop-icons'); }
-ipcRenderer.on('desktop-icons-state', (ev, v) => {
-  desktopIconsOn = v;
+function toggleDesktopIcons() {
+  desktopIconsOn = !desktopIconsOn;
+  ipcRenderer.send('toggle-desktop-icons');
   const btn = document.getElementById('desktopBtn');
-  btn.style.color = v ? 'var(--text-dim)' : 'var(--cyan)';
-  btn.style.borderColor = v ? 'transparent' : 'rgba(0,200,255,0.2)';
-});
+  btn.classList.toggle('desktop-off', !desktopIconsOn);
+}
 
 // ─── Font scaling ───
 let fontMode=false;
 let fontScales={speed:100,steam:100,playing:100,pipeline:100,services:100,recent:100,library:100};
-function toggleFontMode(){fontMode=!fontMode;document.body.classList.toggle('font-mode',fontMode);document.getElementById('fontBtn').classList.toggle('font-active',fontMode);}
+function toggleFontMode(){
+  fontMode=!fontMode;
+  document.body.classList.toggle('font-mode',fontMode);
+  const st=document.getElementById('fontState');if(st)st.textContent=fontMode?'on':'off';
+}
 function scaleCard(id,dir){fontScales[id]=Math.max(50,Math.min(200,fontScales[id]+dir*5));applyScale(id);ipcRenderer.send('save-scales',fontScales);}
 function applyScale(id){const c=document.querySelector(`.card[data-scale-id="${id}"]`);if(!c)return;const inner=c.querySelector('.card-inner');if(inner)inner.style.zoom=(fontScales[id]/100).toString();const p=document.getElementById(`fpct-${id}`);if(p)p.textContent=`${fontScales[id]}%`;}
 function applyAllScales(){for(const id of Object.keys(fontScales))applyScale(id);}
