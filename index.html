@@ -201,6 +201,52 @@
   .card.scalable { position: relative; }
   .hdr-btn.font-active { color: var(--cyan); }
   .hdr-btn.font-active:hover { background: var(--cyan-dim); }
+
+  /* ─── Steam Card ─── */
+  .steam-header { display: flex; gap: 6px; margin-bottom: 8px; }
+  .steam-launch {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px; background: linear-gradient(135deg, #1b2838, #2a475e); border-radius: 8px;
+    cursor: pointer; transition: all 0.15s; font-size: 12px; font-weight: 700;
+    color: #c7d5e0; letter-spacing: 1px; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.06);
+  }
+  .steam-launch:hover { background: linear-gradient(135deg, #2a475e, #3d6b8e); transform: translateY(-1px); }
+  .steam-launch:active { transform: scale(0.98); }
+  .steam-bp {
+    width: 38px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1b2838, #2a475e); border-radius: 8px;
+    cursor: pointer; transition: all 0.15s; font-size: 14px; color: #c7d5e0;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .steam-bp:hover { background: linear-gradient(135deg, #2a475e, #3d6b8e); transform: translateY(-1px); }
+  .steam-bp:active { transform: scale(0.98); }
+
+  .steam-game {
+    display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    background: var(--surface); border-radius: 6px; cursor: pointer;
+    transition: all 0.15s; margin-bottom: 3px;
+  }
+  .steam-game:hover { background: var(--surface2); transform: translateX(3px); }
+  .steam-game:active { transform: scale(0.98); }
+  .steam-game-name { font-size: 10px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .steam-game-time { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--text-dim); flex-shrink: 0; }
+  .steam-game-icon { width: 5px; height: 5px; border-radius: 50%; background: #66c0f4; flex-shrink: 0; box-shadow: 0 0 4px rgba(102,192,244,0.4); }
+
+  .steam-drawer-btn {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 5px; margin-top: 4px; border-radius: 6px; cursor: pointer;
+    font-size: 9px; font-weight: 500; color: var(--text-dim);
+    background: rgba(255,255,255,0.02); transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .steam-drawer-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .steam-drawer { display: none; max-height: 200px; overflow-y: auto; margin-top: 4px; }
+  .steam-drawer.open { display: block; }
+  .steam-drawer::-webkit-scrollbar { width: 2px; }
+  .steam-drawer::-webkit-scrollbar-track { background: transparent; }
+  .steam-drawer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  .steam-drawer-arrow { transition: transform 0.2s; display: inline-block; font-size: 8px; }
+  .steam-drawer-arrow.open { transform: rotate(180deg); }
 </style>
 </head>
 <body>
@@ -245,6 +291,23 @@
           <div class="speed-stat speed-ping"><div class="speed-value" id="speedPing">--</div><div class="speed-unit">ms</div><div class="speed-label">Ping</div></div>
         </div>
         <div class="speed-meta" id="speedMeta">Waiting...</div>
+      </div>
+    </div>
+
+    <!-- Steam -->
+    <div class="card scalable" data-scale-id="steam" style="margin:5px 0 0 0;">
+      <div class="font-controls"><div class="font-btn" onclick="scaleCard('steam',-1)">-</div><div class="font-pct" id="fpct-steam">100%</div><div class="font-btn" onclick="scaleCard('steam',1)">+</div></div>
+      <div class="card-inner">
+        <div class="steam-header">
+          <div class="steam-launch" onclick="launchSteam('steam://open/games')">&#x2B22; Steam</div>
+          <div class="steam-bp" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture Mode">&#x1F4FA;</div>
+        </div>
+        <div id="steamRecent"><div class="empty">Scanning games...</div></div>
+        <div class="steam-drawer-btn" onclick="toggleSteamDrawer()">
+          <span class="steam-drawer-arrow" id="steamArrow">&#x25BC;</span>
+          <span id="steamDrawerLabel">All Games</span>
+        </div>
+        <div class="steam-drawer" id="steamDrawer"></div>
       </div>
     </div>
 
@@ -552,9 +615,99 @@ async function fetchLib(){try{const xml=await httpGet(NAS_IP,PLEX_PORT,`/library
 
 async function refreshAll(){flashRefresh();await Promise.allSettled([fetchStreams(),fetchPipeline(),fetchServices(),fetchRecent(),fetchLib()]);}
 
+// ─── Steam ───
+const steamFs = require('fs');
+const steamPath = require('path');
+
+const STEAM_LIBS = ['C:\\Program Files (x86)\\Steam\\steamapps', 'D:\\SteamLibrary\\steamapps'];
+
+function parseACF(text) {
+  const get = (key) => { const m = text.match(new RegExp('"' + key + '"\\s+"([^"]+)"')); return m ? m[1] : ''; };
+  return { appid: get('appid'), name: get('name'), lastPlayed: parseInt(get('LastPlayed')) || 0, size: parseInt(get('SizeOnDisk')) || 0 };
+}
+
+function scanSteamGames() {
+  const games = [];
+  const skip = ['Steamworks Common Redistributables', 'DisplayFusion'];
+  for (const lib of STEAM_LIBS) {
+    try {
+      const files = steamFs.readdirSync(lib).filter(f => f.startsWith('appmanifest_') && f.endsWith('.acf'));
+      for (const f of files) {
+        try {
+          const data = parseACF(steamFs.readFileSync(steamPath.join(lib, f), 'utf8'));
+          if (data.name && data.appid && !skip.includes(data.name) && !data.name.includes('Soundtrack')) games.push(data);
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  return games.sort((a, b) => b.lastPlayed - a.lastPlayed);
+}
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const diff = Math.floor((Date.now() / 1000) - ts);
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
+  return Math.floor(diff / 2592000) + 'mo ago';
+}
+
+function formatSize(bytes) {
+  if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+  return (bytes / 1e6).toFixed(0) + ' MB';
+}
+
+function launchSteam(url) {
+  require('electron').ipcRenderer.send('open-url', url);
+}
+
+function renderSteamGame(g) {
+  return `<div class="steam-game" onclick="launchSteam('steam://rungameid/${g.appid}')" title="Launch ${g.name.replace(/'/g,"\\'")}">
+    <div class="steam-game-icon"></div>
+    <span class="steam-game-name">${g.name}</span>
+    <span class="steam-game-time">${timeAgo(g.lastPlayed)}</span>
+  </div>`;
+}
+
+let steamDrawerOpen = false;
+let allSteamGames = [];
+
+function toggleSteamDrawer() {
+  steamDrawerOpen = !steamDrawerOpen;
+  document.getElementById('steamDrawer').classList.toggle('open', steamDrawerOpen);
+  document.getElementById('steamArrow').classList.toggle('open', steamDrawerOpen);
+}
+
+function loadSteamGames() {
+  allSteamGames = scanSteamGames();
+  const recentEl = document.getElementById('steamRecent');
+  const drawerEl = document.getElementById('steamDrawer');
+  const labelEl = document.getElementById('steamDrawerLabel');
+
+  // Top 4 recently played (with actual play time)
+  const recent = allSteamGames.filter(g => g.lastPlayed > 0).slice(0, 4);
+
+  if (recent.length) {
+    recentEl.innerHTML = recent.map(renderSteamGame).join('');
+  } else {
+    recentEl.innerHTML = '<div class="empty">No recent games found</div>';
+  }
+
+  // All games sorted alphabetically for the drawer
+  const sorted = [...allSteamGames].sort((a, b) => a.name.localeCompare(b.name));
+  labelEl.textContent = `All Games (${sorted.length})`;
+  drawerEl.innerHTML = sorted.map(g =>
+    `<div class="steam-game" onclick="launchSteam('steam://rungameid/${g.appid}')" title="${formatSize(g.size)}">
+      <div class="steam-game-icon"></div>
+      <span class="steam-game-name">${g.name}</span>
+      <span class="steam-game-time">${formatSize(g.size)}</span>
+    </div>`
+  ).join('');
+}
+
 // ─── Font scaling ───
 let fontMode = false;
-let fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
+let fontScales = { speed: 100, steam: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
 
 function toggleFontMode() {
   fontMode = !fontMode;
@@ -585,8 +738,8 @@ function applyAllScales() {
 // Reload font scales when monitors change
 ipcRenderer.on('display-changed', async () => {
   const sc = await ipcRenderer.invoke('load-scales');
-  if (sc) fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100, ...sc };
-  else fontScales = { speed: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
+  if (sc) fontScales = { speed: 100, steam: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100, ...sc };
+  else fontScales = { speed: 100, steam: 100, playing: 100, pipeline: 100, services: 100, recent: 100, library: 100 };
   applyAllScales();
 });
 
@@ -597,9 +750,11 @@ ipcRenderer.on('display-changed', async () => {
   const sc=await ipcRenderer.invoke('load-scales');if(sc)fontScales={...fontScales,...sc};
   applyRatios();
   applyAllScales();
+  loadSteamGames();
   refreshAll();
 })();
 setInterval(refreshAll,REFRESH_MS);
+setInterval(loadSteamGames, 5 * 60 * 1000); // rescan steam every 5 min
 
 // Fix: first card-handle between speed(fixed) and grow-0 — remove resize behavior
 document.querySelector('.card-handle[data-above="0"][data-below="0"]').style.cursor='default';
