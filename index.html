@@ -322,7 +322,7 @@
         <div class="section-icon" style="border-color:rgba(102,192,244,0.2);padding:1px;">
           <svg viewBox="0 0 32 32" width="11" height="11" fill="var(--text)"><path d="M16 0C7.61 0 .73 6.44.06 14.56l8.63 3.56c.73-.5 1.62-.79 2.57-.79.09 0 .17 0 .25.01l3.84-5.57v-.08c0-3.42 2.78-6.2 6.2-6.2s6.2 2.78 6.2 6.2-2.78 6.2-6.2 6.2h-.14l-5.48 3.91c0 .06.01.12.01.18 0 2.57-2.09 4.66-4.66 4.66-2.28 0-4.17-1.64-4.58-3.8L.14 19.87C1.87 27.05 8.31 32 16 32c8.84 0 16-7.16 16-16S24.84 0 16 0zm-4.93 24.88l-1.96-.81c.35.72.96 1.32 1.76 1.64 1.72.7 3.68-.13 4.38-1.85.34-.83.34-1.74 0-2.57-.34-.83-.99-1.48-1.82-1.82-.83-.33-1.71-.32-2.48-.03l2.02.84c1.27.52 1.87 1.97 1.35 3.24-.53 1.27-1.98 1.87-3.25 1.36zm10.48-13.19c0-2.28-1.86-4.14-4.14-4.14-2.28 0-4.14 1.86-4.14 4.14 0 2.28 1.86 4.14 4.14 4.14 2.28 0 4.14-1.86 4.14-4.14zm-7.24.01c0-1.72 1.39-3.11 3.11-3.11s3.11 1.39 3.11 3.11-1.39 3.11-3.11 3.11-3.11-1.39-3.11-3.11z"/></svg>
         </div>
-        <span class="section-label" style="cursor:pointer;" onclick="launchSteam('steam://open/games')" title="Open Library">Steam</span>
+        <span class="section-label" style="cursor:pointer;" onclick="launchSteamBig()" title="Open Library">Steam</span>
         <div class="section-actions">
           <div class="section-btn" onclick="launchSteam('steam://open/minigameslist')" title="Small Mode" style="font-size:8px;font-weight:700;">S</div>
           <div class="section-btn" onclick="launchSteam('steam://open/bigpicture')" title="Big Picture" style="font-size:9px;">&#x1F4FA;</div>
@@ -596,6 +596,11 @@ function scanSteamGames(){const games=[],skip=['Steamworks Common Redistributabl
 function timeAgo(ts){if(!ts)return'';const d=Math.floor(Date.now()/1000-ts);if(d<3600)return Math.floor(d/60)+'m';if(d<86400)return Math.floor(d/3600)+'h';if(d<2592000)return Math.floor(d/86400)+'d';return Math.floor(d/2592000)+'mo';}
 function formatSize(b){return b>1e9?(b/1e9).toFixed(1)+' GB':(b/1e6).toFixed(0)+' MB';}
 function launchSteam(u){ipcRenderer.send('open-url',u);}
+function launchSteamBig(){
+  // Exit small mode and open main window, then navigate to games
+  launchSteam('steam://open/main');
+  setTimeout(()=>launchSteam('steam://open/games'), 500);
+}
 let steamDrawerOpen=false,allSteamGames=[];
 function toggleSteamDrawer(){
   steamDrawerOpen=!steamDrawerOpen;
