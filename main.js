@@ -146,10 +146,8 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromBuffer(Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAARElEQVQ4y2P4z8BQz0BPAMNA' +
-    'YGBg+M9AT8DAQDcXDKgL6OeCARUNGHUBXV0wFAwgGwAAAAD//wMAAAD//wMAAAD//wMA/wCq' +
-    'w1QAAAAASUVORK5CYII=', 'base64'));
+  const iconPath = path.join(__dirname, 'tray-icon.png');
+  const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
   tray.setToolTip('Unraid NAS Widget');
   tray.setContextMenu(Menu.buildFromTemplate([
