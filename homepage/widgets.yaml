@@ -1,0 +1,14 @@
+---
+# Homepage top widgets - https://gethomepage.dev/widgets/
+
+- search:
+    provider: google
+    target: _blank
+
+- openmeteo:
+    label: Winlock
+    latitude: <your-coordinates>
+    longitude: <your-coordinates>
+    timezone: America/Los_Angeles
+    units: imperial
+    cache: 5

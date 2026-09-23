@@ -1,226 +1,108 @@
 # NasDash
 
-A sleek, always-on-bottom desktop widget for monitoring your Unraid NAS, Plex, media pipeline, and Steam library at a glance. Styled to match Steam's dark UI so it blends seamlessly with your desktop.
+A desktop dashboard for a home Unraid server. NasDash is a small Electron
+window that sits on the Windows desktop and shows a heavily customised
+[Homepage](https://gethomepage.dev) dashboard running on the NAS, themed as a
+monospace "terminal steel" console with live system stats, media players and
+home controls.
 
-![NasDash](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-powered-47848F)
-
-## Features
-
-- **Speed Test** — Ookla CLI speed test, runs every 6 hours with cached results
-- **Now Playing** — Live Plex streams with username, progress bar, S01E12 format for shows
-- **Pipeline** — Media Manager job status, polls every 3 seconds
-- **Services** — Health-check grid for all your NAS services, clickable to open web UI
-- **Recently Added** — Latest Plex media with FILM/SHOW/SSN/EP badges
-- **Library + Storage** — Plex library counts and NAS storage bar
-- **Steam** — Click header to open library, S/TV/Friends buttons, recent games, full game drawer overlay
-- **Desktop Icons Toggle** — Hide/show desktop icons with one click
-- **Card Reordering** — Drag cards to rearrange, saved across restarts
-- **Per-Card Font Scaling** — Independent Title (T) and Body (B) zoom per card
-- **Multi-Monitor Memory** — Remembers position and font scales per display configuration
-- **Auto-Start** — Launches silently on Windows startup with no terminal flash
+> **This is the recovery kit.** Everything needed to rebuild NasDash after a
+> Windows reinstall is in this repo plus the NAS copy. The installer does
+> almost all of it; the rest is written down here. No AI required.
 
 ---
 
-## Fresh Install Guide
+## After reinstalling Windows (about 10 minutes)
 
-### Prerequisites
-
-- **Windows 10/11**
-- **Node.js 18+** — Download from [nodejs.org](https://nodejs.org)
-- **Git** (optional) — or just download the ZIP from GitHub
-
-### Step 1: Download
-
-```bash
-git clone https://github.com/Pennderin/NasDash.git
-```
-
-Or click **Code → Download ZIP** on GitHub and extract it to a permanent location like:
-```
-C:\Users\YourName\AppData\Local\NasDash
-```
-
-> **Important:** This folder IS the install — pick a permanent spot.
-
-### Step 2: Install Dependencies
-
-Open a terminal in the NasDash folder and run:
-
-```bash
-npm install
-```
-
-### Step 3: Configure Your Network
-
-Open **`index.html`** in any text editor (Notepad works fine) and search for this line:
-
-```javascript
-const NAS_IP='192.168.0.190', PLEX_TOKEN='LAKWMV_Mz2oFF4w5yBWf', MM_PORT=9876, PLEX_PORT=32400, REFRESH_MS=30000;
-```
-
-Change these values to match YOUR setup:
-
-| Setting | What it is | How to find it |
-|---------|-----------|----------------|
-| `NAS_IP` | Your Unraid server's local IP address | Unraid WebUI → Settings → Network Settings |
-| `PLEX_TOKEN` | Your Plex authentication token | See [Finding your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/) |
-| `MM_PORT` | Media Manager port (if you use it) | Default `9876`. If you don't run Media Manager, the Pipeline card will just say "unreachable" — harmless |
-| `PLEX_PORT` | Your Plex server port | Almost always `32400` — probably don't change this |
-| `REFRESH_MS` | Data refresh interval in milliseconds | Default `30000` (30 seconds) |
-
-### Step 4: Configure Services
-
-In the same **`index.html`**, find the `ALL_SERVICES` array. This is your catalog of NAS services:
-
-```javascript
-const ALL_SERVICES=[
-  {name:'Plex', port:32400, url:'http://YOUR_NAS_IP:32400/web'},
-  {name:'Sonarr', port:8989, url:'http://YOUR_NAS_IP:8989'},
-  // add your own...
-];
-```
-
-For each service, set:
-- **`name`** — What to display
-- **`port`** — Port number (used for health check — green dot = up, red = down)
-- **`url`** — Full URL to open when you click it
-
-Replace all IP addresses with your NAS IP.
-
-Then update `DEFAULT_SVC` to choose which services appear by default:
-
-```javascript
-const DEFAULT_SVC=['Plex','Sonarr','Radarr']; // names must match ALL_SERVICES entries
-```
-
-You can always add/remove services later from within the widget using the + and − buttons.
-
-### Step 5: Configure Steam Libraries
-
-Find the `STEAM_LIBS` line:
-
-```javascript
-const STEAM_LIBS=['C:\\Program Files (x86)\\Steam\\steamapps','D:\\SteamLibrary\\steamapps'];
-```
-
-Update these paths to where YOUR Steam games are installed. To find them: open Steam → Settings → Storage. List every library folder path here.
-
-### Step 6: Update Storage Display
-
-The NAS storage bar is static. Search for this section and update the numbers to match your array:
-
-```html
-<div class="storage-bar-fill" style="width:51%"></div>
-<div class="storage-bar-label">51% Used</div>
-```
-```html
-<span>11.1 TB used</span><span>10.7 TB free</span><span>21.8 TB total</span>
-```
-
-### Step 7: Speed Test (Optional)
-
-Download `speedtest.exe` from [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) and place it in the NasDash folder. Without it, the Speed Test card shows "Failed" but everything else works fine.
-
-### Step 8: Test It
-
-```bash
-npx electron .
-```
-
-The widget should appear on the right edge of your primary monitor. If your NAS IP and Plex token are correct, you'll see live data within seconds.
-
-### Step 9: Auto-Start on Boot
-
-To have NasDash launch silently every time Windows starts:
-
-1. **Edit `launch-silent.vbs`** — open it in Notepad and update the path on line 2:
-   ```vbs
-   WshShell.CurrentDirectory = "C:\Users\YourName\AppData\Local\NasDash"
+1. **Sign in to Windows** as normal and make sure the PC is on the home network.
+2. **Open the kit** in File Explorer:
+   `\\192.168.0.190\General Storage\NasDash Recovery`
+   (No NAS? Download this repo from GitHub: *Code → Download ZIP*, and extract it.)
+3. **Right-click `install.ps1` → Run with PowerShell.**
+   If Windows refuses to run it, open PowerShell in that folder and run:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install.ps1
    ```
-   Make this match wherever you put the NasDash folder.
+4. **Approve the admin prompt** when it appears (it only adds one firewall rule).
+5. **Do the short "still to do" list** the installer prints at the end, usually just:
+   - Open **Spotify** once, sign in, then close it.
 
-2. **Create a startup shortcut:**
-   - Press **Win+R**, type `shell:startup`, press **Enter**
-   - Right-click in the folder → **New → Shortcut**
-   - For the target, browse to your `launch-silent.vbs` file
-   - Name it **NasDash**
+That's it. NasDash starts by itself and will start at every login from now on.
 
-That's it. On next reboot, NasDash will start silently with no terminal flash.
+### What the installer does
+| Step | Detail |
+|---|---|
+| Prerequisites | Installs **Node.js LTS** and the **Spotify** desktop app (Microsoft Store build) via `winget` if missing |
+| NasDash app | Copies `app/` to `%LOCALAPPDATA%\NasDashHomepage`, installs Electron, restores your saved window layouts/opacity |
+| Steam agent | Copies `agents/steam-agent/` to `%LOCALAPPDATA%\SteamAgent` |
+| Beszel agent | Installs the PC stats agent to `%LOCALAPPDATA%\BeszelAgent` and restores its identity so it reconnects as the same "PC" (history kept) |
+| Startup | Creates `NasDash`, `SteamAgent` and `BeszelAgent` shortcuts in the Startup folder |
+| Backups | Creates the **NasDash Backup** scheduled task (daily, 3:15 AM) |
+| Firewall | Adds **Steam Agent LAN** (TCP 7790, local subnet only) |
+| Launch | Starts everything and checks each piece is answering |
 
-> **Tip:** You can also just double-click **START.bat** anytime to launch manually.
-
----
-
-## Widget Controls
-
-| Button | Where | What it does |
-|--------|-------|-------------|
-| **—** | Left of clock | Collapse widget to header-only bar |
-| **📁** | Right of clock | Toggle desktop icons visible/hidden |
-| **⚙** | Gear icon | Opens settings dropdown (Lock, Font Size, Reorder) |
-| **✕** | Far right | Close window (widget stays in system tray) |
-
-### Settings Menu (⚙)
-
-- **Lock** — Prevents accidental moving/resizing
-- **Font Size** — Shows T/B controls on each card. **T** scales section titles, **B** scales body content. Independent per card.
-- **Reorder** — Enables drag-to-reorder on all cards
-
-### Steam Card
-
-- **Click "Steam" text** → Opens Steam library in large mode
-- **👥** → Opens Steam Friends list
-- **S** → Opens Steam in Small Mode
-- **📺** → Opens Big Picture Mode
-- **Click any game** → Launches it
-- **▼ All Games** → Full-widget scrollable game drawer overlay
+It is safe to run again at any time: it stops the running copies, replaces the
+code and keeps your saved layouts.
 
 ---
 
-## File Structure
+## How NasDash is put together
 
 ```
-NasDash/
-├── main.js              # Electron main process
-├── index.html           # All UI, styling, and logic
-├── package.json         # Dependencies and config
-├── tray-icon.png        # System tray icon (ND)
-├── toggle-desktop.ps1   # Desktop icons toggle script
-├── launch-silent.vbs    # Silent startup launcher
-├── START.bat            # Manual launcher (double-click)
-├── speedtest.exe        # Ookla speed test CLI (download separately)
-└── README.md
+ PC (Windows)                                   NAS (Unraid, 192.168.0.190)
+ ─────────────                                  ───────────────────────────
+ NasDash window (Electron) ── shows ──────────▶ Homepage          :3000  theme + add-ons in custom.css / custom.js
+   └ Spotify login catcher 127.0.0.1:8888          │
+ Steam agent (Node)        :7790 ◀── page ─────────┤  (Steam card, game art, launches games, starts Spotify hidden)
+ Beszel agent ──────────── stats ──────────────▶ Beszel hub       :8093  (PC / NAS / JARVIS system strip)
+ Spotify desktop app  ◀── Spotify Connect ──────  media-bridge     :7792  (Audiobookshelf, Spotify, Home Assistant,
+                                                                          Beszel, Steam friends — holds all API keys)
 ```
 
-### Auto-Generated State Files
+| Part | Lives in | In this repo |
+|---|---|---|
+| NasDash window | PC `%LOCALAPPDATA%\NasDashHomepage` | `app/` |
+| Steam agent | PC `%LOCALAPPDATA%\SteamAgent` | `agents/steam-agent/` |
+| Beszel PC agent | PC `%LOCALAPPDATA%\BeszelAgent` | `agents/beszel/` |
+| Homepage theme, cards, config | NAS `/mnt/user/system/docker/homepage` | `homepage/` (keys redacted) |
+| media-bridge | NAS `/mnt/user/appdata/media-bridge` | `media-bridge/` |
+| Beszel hub + NAS agent | NAS containers | `nas-containers.sh` |
+| JARVIS stats agent | JARVIS `~/beszel-agent` | `agents/beszel/jarvis-run.sh` |
 
-Created on first run in the NasDash folder. Safe to delete to reset settings.
-
-| File | Stores |
-|------|--------|
-| `display-bounds.json` | Window position per monitor setup |
-| `card-order.json` | Card arrangement |
-| `card-ratios.json` | Vertical card sizing ratios |
-| `font-scales.json` | T/B font scales per monitor setup |
-| `services-config.json` | Active services and order |
-| `speedtest-results.json` | Cached speed test data |
-| `widget-state.json` | Lock on/off |
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| No data showing | Verify `NAS_IP` and `PLEX_TOKEN` in `index.html`. Test by visiting `http://YOUR_IP:32400/web` in a browser. |
-| Speed Test says "Failed" | Download `speedtest.exe` from [Ookla](https://www.speedtest.net/apps/cli) and put it in the NasDash folder. |
-| Services show red dots | That service is unreachable — check it's running and the port is correct in `ALL_SERVICES`. |
-| No Steam games | Update `STEAM_LIBS` paths to match your Steam library folders. |
-| Wrong monitor | Drag the widget to the right monitor. Position saves automatically. Delete `display-bounds.json` to reset. |
-| Terminal flashes on boot | Use `launch-silent.vbs` for the startup shortcut, not `START.bat`. |
+### The dashboard, top to bottom
+- **System strip**: PC / NAS / JARVIS tiles with CPU, RAM and GPU rings, per-GPU bars, a 1-hour CPU sparkline (Beszel).
+- **Speed** (WAN vs VPN) and **Home** (Home Assistant: lights, bedroom temp, AC, alarm, with a Controls panel).
+- **Audiobookshelf**: built-in player with book switcher, volume, speed, chapters.
+- **Spotify**: now playing, controls, volume, and a Recent / Playlists / Artists / Up next browser. Plays on the PC only; starts Spotify hidden if it isn't running.
+- **Plex**, **SABnzbd**, **Steam** (last game, recently played, searchable library popout, friends online), the *arr apps, and tools.
 
 ---
 
-## License
+## Keeping the kit up to date
 
-MIT
+Two backups run automatically, so the kit always matches what is running:
+
+| Backup | Runs | Copies |
+|---|---|---|
+| `backup.ps1` (PC task "NasDash Backup") | daily 3:15 AM | NasDash app, Steam agent → `app/`, `agents/`; layouts + Beszel identity → `private/` |
+| `nas-backup.sh` (NAS cron) | daily 3:30 AM | Homepage theme/config, media-bridge → `homepage/`, `media-bridge/`, **with every key redacted** |
+
+To publish the latest version to GitHub, commit and push the kit folder
+(everything except `private/`, which is git-ignored). `nas-backup.sh` refuses
+to finish if anything that looks like a key slipped through.
+
+### `private/` (NAS only, never in git)
+Machine-specific things the installer restores automatically when the NAS is reachable:
+- `nasdash-state/`: saved window positions, zoom and opacity per display
+- `beszel/`: the PC agent's identity (`fingerprint`), hub connection (`agent.env`) and the agent binary
+
+---
+
+## More documentation
+- **[docs/SECRETS.md](docs/SECRETS.md)**: every key and token, where it lives and how to regenerate it
+- **[docs/NAS-REBUILD.md](docs/NAS-REBUILD.md)**: rebuilding the NAS side (containers, config, cron)
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: when a card is blank or something won't start
+
+## Older version
+The original standalone NasDash widget (v1: Plex now-playing, pipeline and
+drag-to-reorder cards) is preserved at the git tag **`v1-legacy`**.

@@ -1,8 +1,7 @@
+# machine-specific + secret material lives only on the NAS copy
+private/
 node_modules/
-dist/
-*.exe
-speedtest-results.json
-services-config.json
-card-ratios.json
-widget-state.json
-window-bounds.json
+*.bak*
+*.log
+homepage/.last-nas-backup
+Thumbs.db

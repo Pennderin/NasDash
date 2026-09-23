@@ -1,0 +1,8 @@
+---
+# Homepage Docker config - https://gethomepage.dev/configs/docker/
+#
+# The "nas" identifier is referenced from services.yaml as `server: nas`.
+# Homepage uses the mounted /var/run/docker.sock to query container state.
+
+nas:
+  socket: /var/run/docker.sock

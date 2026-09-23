@@ -1,0 +1,14 @@
+{
+    "name":  "nasdash-homepage",
+    "version":  "1.0.0",
+    "description":  "NasDash shell wrapping Homepage dashboard at 192.168.0.190:3000",
+    "main":  "main.js",
+    "author":  "Pennderin",
+    "license":  "MIT",
+    "scripts":  {
+                    "start":  "electron ."
+                },
+    "devDependencies":  {
+                            "electron":  "^44.4.4"
+                        }
+}

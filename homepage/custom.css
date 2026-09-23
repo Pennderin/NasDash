@@ -1,0 +1,580 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+/* === Hide the manual cache-revalidate button at bottom right === */
+#revalidate { display: none !important; }
+#footer { padding: 0 !important; min-height: 0 !important; }
+
+/* === Use full available width for the main content container === */
+.container {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+#information-widgets {
+  margin-left: 0.5rem !important;
+  margin-right: 0.5rem !important;
+  margin-top: 0.75rem !important;
+}
+#information-widgets-right {
+  flex-basis: 100% !important;
+  width: 100% !important;
+  margin-top: 0.5rem !important;
+  justify-content: flex-start !important;
+}
+
+/* NOTE: page-background transparency is injected by the NasDash Electron
+ * wrapper only (main.js), so Homepage keeps its normal dark background when
+ * opened in a regular browser. */
+
+/* ═══ Layout: grid edges + fill to bottom ══════════════════════════════════ */
+/* Card grid edges line up with the search bar (value tuned by measurement). */
+#layout-groups {
+  margin-left: var(--nd-grid-inset, 0.25rem) !important;
+  margin-right: var(--nd-grid-inset, 0.25rem) !important;
+  margin-bottom: 0.15rem !important;
+  /* Stack groups vertically so the Listening group can take the leftover
+   * height and the cards reach the bottom of the window. */
+  flex: 1 1 auto;
+  min-height: 0;          /* allow shrinking to the window; content scrolls inside */
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+}
+#layout-groups > .services-group { flex: 0 0 auto; }
+
+/* Listening group (ABS + Spotify, full width) absorbs the remaining height;
+ * every wrapper between the group and the Spotify card has to flex. */
+.services-group:has(li.service[data-name="Spotify"]) {
+  flex: 0 0 auto !important; display: flex !important; flex-direction: column;
+}
+.services-group:has(li.service[data-name="Spotify"]) > div,
+.services-group:has(li.service[data-name="Spotify"]) > div > div {
+  flex: 1 1 auto; display: flex !important; flex-direction: column; min-height: 0; height: auto !important;
+}
+/* Homepage's disclosure panel stays display:block (Tailwind v4 layered
+ * !important beats ours), so size the list by percentage instead of flex. */
+.services-group:has(li.service[data-name="Spotify"]) ul.services-list {
+  grid-template-rows: auto auto;
+}
+li.service[data-name="Spotify"] { display: flex; flex-direction: column; min-height: 0; }
+li.service[data-name="Spotify"] > .service-card { flex: none; margin-bottom: 0.5rem !important; }
+
+/* ═══ NasDash add-on cards (custom.js) ═════════════════════════════════════ */
+
+/* ─── shared controls ─── */
+.nd-bar {
+  height: 5px; border-radius: 3px; cursor: pointer;
+  background: rgb(255 255 255 / 0.1); position: relative; overflow: hidden;
+}
+.nd-bar:hover { height: 7px; margin-bottom: -2px; }
+.nd-fill { height: 100%; width: 0; border-radius: 3px; pointer-events: none; }
+.nd-times { display: flex; justify-content: space-between; font-size: 0.62rem; opacity: .6;
+  margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.nd-ctrls { display: flex; justify-content: center; align-items: center; gap: 0.35rem; margin-top: 0.25rem; }
+.nd-ctrls button, .nd-abs-opts button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  min-width: 1.9rem; height: 1.9rem; padding: 0 0.35rem; border-radius: 9999px;
+  background: rgb(255 255 255 / 0.05); color: rgb(var(--color-200));
+  font-size: 0.8rem; cursor: pointer; transition: background .15s, color .15s;
+}
+.nd-ctrls button small { font-size: 0.5rem; opacity: .75; }
+.nd-ctrls button:hover, .nd-abs-opts button:hover { background: rgb(255 255 255 / 0.12); color: #fff; }
+.nd-ctrls .nd-main { min-width: 2.4rem; height: 2.4rem; font-size: 1rem; color: #111; }
+.nd-toggle.on { color: #1db954; }
+.nd-err { margin-top: 0.3rem; font-size: 0.65rem; color: #f87171; text-align: center; }
+
+/* ─── Audiobookshelf: wide card, player on the right ─── */
+/* Rows: 1 title · 2 Homepage's hidden stats panel · 3 widget · 4 book shelf.
+ * The player spans all rows on the right. Explicit rows matter: Homepage
+ * renders the widget after us, so auto-placement would scramble the order. */
+.service-card.nd-abs-host {
+  display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.9fr);
+  grid-template-rows: auto auto auto 1fr; column-gap: 0.5rem; align-items: start;
+}
+.service-card.nd-abs-host > :not(.nd-abs) { grid-column: 1; }
+.service-card.nd-abs-host > .service-title { position: relative; }
+.service-card.nd-abs-host > .service-container { grid-row: 3; }
+.service-card.nd-abs-host > .nd-abs-shelf { grid-row: 4; align-self: end; margin: 0 0.25rem 0.3rem; }
+.service-card.nd-abs-host > .nd-abs { grid-column: 2; grid-row: 1 / span 4; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; }
+
+.nd-abs {
+  margin: 0.25rem 0.25rem 0.25rem 0; padding: 0.5rem; border-radius: 0.375rem;
+  background: rgb(255 255 255 / 0.04); color: rgb(var(--color-200)); user-select: none;
+}
+.nd-abs-main { display: flex; gap: 0.6rem; }
+.nd-abs-cover { width: 5rem; height: 5rem; flex-shrink: 0; border-radius: 0.3rem;
+  object-fit: cover; background: rgb(255 255 255 / 0.06); box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
+.nd-abs-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nd-abs-top { display: flex; gap: 0.4rem; align-items: flex-start; }
+.nd-abs-meta { flex: 1; min-width: 0; line-height: 1.25; }
+.nd-abs-title { font-size: 0.82rem; font-weight: 600; color: rgb(var(--color-100));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-abs-sub, .nd-abs-chapter { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-abs-sub { opacity: .7; }
+.nd-abs-series { opacity: .85; }
+.nd-abs-chapter { color: #f59e0b; margin-top: 0.1rem; }
+.nd-abs-opts { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.nd-abs-opts button { font-size: 0.6rem; font-weight: 700; height: 1.5rem; min-width: 2.2rem; }
+.nd-abs-bar { margin-top: 0.4rem; }
+.nd-abs-bar .nd-fill { background: #f59e0b; }
+.nd-abs .nd-main { background: #f59e0b; }
+.nd-abs .nd-main:hover { background: #fbbf24; color: #000; }
+
+.nd-abs-shelf { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; user-select: none; }
+.nd-abs-shelf-label { flex-basis: 100%; font-size: 0.58rem; text-transform: uppercase; letter-spacing: .05em; opacity: .5; }
+.nd-abs-shelf-item { position: relative; width: 2rem; height: 2rem; border-radius: 0.2rem; overflow: hidden;
+  cursor: pointer; opacity: .75; transition: opacity .15s, transform .15s; }
+.nd-abs-shelf-item:hover { opacity: 1; transform: translateY(-1px); }
+.nd-abs-shelf-item img { width: 100%; height: 100%; object-fit: cover; }
+.nd-abs-shelf-item i { position: absolute; left: 0; bottom: 0; height: 2px; background: #f59e0b; }
+
+/* ABS: placeholder for books without cover art */
+.nd-abs-shelf-item.nocover { background: rgb(255 255 255 / 0.08); display: grid; place-items: center; color: #f59e0b; font-size: 0.9rem; }
+.nd-abs-shelf-item.nocover img { display: none; }
+.nd-abs-shelf-item.nocover::before { content: "\1F4D6"; }
+.nd-abs-cover.nocover { display: grid; place-items: center; font-size: 2rem; }
+
+/* ─── Spotify: mirrors the Audiobookshelf card ─── */
+/* Same grid as ABS: identity + browser on the left, player spanning the right. */
+.service-card.nd-sp-host {
+  display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.9fr);
+  grid-template-rows: auto minmax(0, 1fr); column-gap: 0.5rem; align-items: start;
+}
+.service-card.nd-sp-host > :not(.nd-sp) { grid-column: 1; }
+.service-card.nd-sp-host > .service-title { grid-row: 1; position: relative; }
+.service-card.nd-sp-host > .nd-sp-side { grid-row: 2; align-self: stretch; min-height: 0;
+  display: flex; flex-direction: column; margin: 0 0.25rem 0.3rem; user-select: none; }
+.service-card.nd-sp-host > .nd-sp { grid-column: 2; grid-row: 1 / span 2; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; position: relative; }
+.service-card.nd-sp-host.nd-sp-off > .nd-sp-side { display: none; }
+
+.nd-sp {
+  margin: 0.25rem 0.25rem 0.25rem 0; padding: 0.5rem; border-radius: 0.375rem; min-height: 0;
+  background: rgb(255 255 255 / 0.04); color: rgb(var(--color-200)); user-select: none;
+}
+.nd-sp-main { display: flex; gap: 0.6rem; }
+.nd-sp-cover { width: 5rem; height: 5rem; flex-shrink: 0; border-radius: 0.3rem; object-fit: cover;
+  background: rgb(255 255 255 / 0.06); box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
+.nd-sp-cover-empty { display: grid; place-items: center; color: #1db954; font-size: 2rem; }
+.nd-sp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nd-sp-top { display: flex; gap: 0.4rem; align-items: flex-start; }
+.nd-sp-meta { flex: 1; min-width: 0; line-height: 1.25; }
+.nd-sp-title { font-size: 0.82rem; font-weight: 600; color: rgb(var(--color-100));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-sp-sub, .nd-sp-accent { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-sp-sub { opacity: .7; }
+.nd-sp-accent { color: #1db954; margin-top: 0.1rem; }
+.nd-sp-opts { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.nd-sp-opts button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+  height: 1.5rem; min-width: 2.2rem; padding: 0 0.45rem; border-radius: 9999px;
+  background: rgb(255 255 255 / 0.05); color: rgb(var(--color-200));
+  font-size: 0.6rem; font-weight: 700; cursor: pointer; transition: background .15s, color .15s;
+}
+.nd-sp-opts button:hover, .nd-sp-opts button.on { background: rgb(255 255 255 / 0.12); color: #fff; }
+.nd-sp-bar { margin-top: 0.4rem; }
+.nd-sp-bar .nd-fill { background: #1db954; }
+.nd-sp .nd-main { background: #1db954; }
+.nd-sp .nd-main:hover { background: #1ed760; color: #000; }
+
+/* volume + device popover (from the pill) */
+.nd-sp-pop { position: absolute; right: 0.5rem; top: 2.3rem; z-index: 20; min-width: 14rem; max-width: 90%;
+  background: rgb(30 41 59 / 0.98); border: 1px solid rgb(255 255 255 / 0.1); border-radius: 0.375rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .5); padding: 0.4rem; display: flex; flex-direction: column; gap: 0.1rem; }
+.nd-sp-volrow { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; padding: 0.2rem 0.35rem 0.4rem; }
+.nd-sp-volrow b { font-weight: 500; min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.65rem; }
+.nd-sp-vol { -webkit-appearance: none; flex: 1; height: 3px; border-radius: 2px; background: rgb(255 255 255 / 0.15); cursor: pointer; }
+.nd-sp-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #1db954; }
+.nd-sp-pop-label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: .05em; opacity: .5; padding: 0.2rem 0.35rem 0; }
+.nd-sp-dev { text-align: left; padding: 0.3rem 0.45rem; border-radius: 0.25rem; font-size: 0.68rem; cursor: pointer; }
+.nd-sp-dev small { opacity: .5; margin-left: 0.3rem; }
+.nd-sp-dev:hover { background: rgb(255 255 255 / 0.08); }
+.nd-sp-dev.on { color: #1db954; }
+.nd-sp-dev.dim { opacity: .6; cursor: default; }
+
+/* browser (left column, in place of ABS's shelf) */
+.nd-sp-tabs { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-bottom: 0.3rem; }
+.nd-sp-tabs button { padding: 0.15rem 0.45rem; border-radius: 9999px; font-size: 0.58rem; font-weight: 600;
+  background: rgb(255 255 255 / 0.05); cursor: pointer; opacity: .75; }
+.nd-sp-tabs button:hover { opacity: 1; background: rgb(255 255 255 / 0.1); }
+.nd-sp-tabs button.on { background: #1db954; color: #000; opacity: 1; }
+.nd-sp-tabs .nd-sp-refresh { margin-left: auto; }
+.nd-sp-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem;
+  scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .2) transparent; }
+.nd-sp-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem; border-radius: 0.25rem;
+  text-align: left; cursor: pointer; flex-shrink: 0; }
+.nd-sp-item:hover { background: rgb(255 255 255 / 0.07); }
+.nd-sp-item img, .nd-sp-noimg { width: 1.8rem; height: 1.8rem; flex-shrink: 0; border-radius: 0.2rem; object-fit: cover;
+  background: rgb(255 255 255 / 0.06); display: grid; place-items: center; color: #1db954; }
+.nd-sp-item-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.nd-sp-item-text b { font-size: 0.66rem; font-weight: 600; color: rgb(var(--color-100)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-sp-item-text small { font-size: 0.58rem; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+
+.nd-sp-msg { font-size: 0.66rem; opacity: .7; padding: 0.4rem 0.2rem; display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-start; }
+.nd-sp-connect { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.25rem; }
+.nd-sp-connect-btn { padding: 0.4rem 0.9rem; border-radius: 9999px; cursor: pointer;
+  background: #1db954; color: #000; font-size: 0.72rem; font-weight: 700; }
+.nd-sp-connect-btn.small { padding: 0.3rem 0.75rem; font-size: 0.64rem; }
+.nd-sp-connect-btn:hover { background: #1ed760; }
+.nd-sp-hint { font-size: 0.62rem; opacity: .6; }
+
+/* ═══ Systems strip (custom.js, data from Beszel via media-bridge) ═════════ */
+.nd-sys { flex: 0 0 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem;
+  margin: 0 0 0.5rem; user-select: none; }
+.nd-sys-tile { background: rgb(255 255 255 / 0.05); border-radius: 0.375rem; padding: 0.45rem 0.6rem 0.35rem;
+  cursor: pointer; transition: background .15s; color: rgb(var(--color-200)); min-width: 0;
+  display: flex; flex-direction: column; }
+.nd-sys-tile .nd-sys-spark { margin-top: auto; padding-top: 0.25rem; }
+.nd-sys-tile:hover { background: rgb(255 255 255 / 0.09); }
+.nd-sys-head { display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.2rem; }
+.nd-sys-head > div { flex: 1; min-width: 0; line-height: 1.2; }
+.nd-sys-head b { display: block; font-size: 0.85rem; font-weight: 600; color: rgb(var(--color-100)); }
+.nd-sys-head small { display: block; font-size: 0.62rem; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-sys-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #22c55e; margin-top: 0.2rem; flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgb(34 197 94 / .15); }
+.nd-sys-dot.down { background: #ef4444; box-shadow: 0 0 0 3px rgb(239 68 68 / .15); }
+.nd-sys-rings { display: flex; justify-content: space-around; margin-bottom: 0.15rem; }
+.nd-sys-ring { display: flex; flex-direction: column; align-items: center; gap: 0; line-height: 1.1; }
+.nd-sys-ring svg { width: 2.5rem; height: 2.5rem; }
+.nd-sys-ring text { font-size: 10.5px; font-weight: 600; fill: rgb(var(--color-100)); }
+.nd-sys-ring span { font-size: 0.6rem; opacity: .65; }
+.nd-sys-gpu { display: flex; align-items: center; gap: 0.35rem; font-size: 0.6rem; margin-top: 0.1rem; line-height: 1.2; }
+.nd-sys-gpu-l { width: 2.4rem; flex-shrink: 0; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-sys-gpu-bar { flex: 1; height: 5px; border-radius: 3px; background: rgb(255 255 255 / .08); overflow: hidden; }
+.nd-sys-gpu-bar i { display: block; height: 100%; border-radius: 3px; transition: width .6s ease; }
+.nd-sys-gpu-v { flex-shrink: 0; min-width: 3.4rem; text-align: right; font-variant-numeric: tabular-nums; opacity: .85; }
+.nd-sys-spark { display: block; width: 100%; height: 1.1rem; margin-top: 0.25rem; }
+.nd-sys-spark-empty { font-size: 0.58rem; opacity: .45; display: grid; place-items: center; }
+.nd-sys-foot { display: flex; justify-content: space-between; font-size: 0.58rem; opacity: .5; margin-top: 0.05rem; line-height: 1.2; }
+.nd-sys-msg { grid-column: 1 / -1; font-size: 0.7rem; opacity: .6; padding: 1.5rem 0; text-align: center; }
+
+/* ABS volume pill (top right, same as Spotify's) + speed pill (bottom right) */
+.nd-abs { position: relative; }
+.nd-abs-opts button { padding: 0 0.45rem; gap: 2px; }
+.nd-abs-opts button.on { background: rgb(255 255 255 / 0.12); color: #fff; }
+.nd-abs-pop { min-width: 12rem; }
+.nd-abs-vol::-webkit-slider-thumb { background: #f59e0b !important; }
+.nd-abs .nd-ctrls { position: relative; }
+.nd-abs .nd-ctrls .nd-abs-speed {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  height: 1.5rem; min-width: 2.2rem; padding: 0 0.45rem; border-radius: 9999px;
+  font-size: 0.6rem; font-weight: 700;
+}
+
+/* ═══ Home card (Home Assistant) ═══════════════════════════════════════════ */
+.service-card.nd-ha-host { position: relative; }
+.nd-ha { user-select: none; }
+.nd-ha-pill {
+  position: absolute; top: 0.55rem; right: 0.55rem; z-index: 15;
+  height: 1.5rem; padding: 0 0.55rem; border-radius: 9999px; cursor: pointer;
+  background: rgb(255 255 255 / 0.05); color: rgb(var(--color-200));
+  font-size: 0.6rem; font-weight: 700; transition: background .15s, color .15s;
+}
+.nd-ha-pill:hover, .nd-ha-pill.on { background: rgb(255 255 255 / 0.12); color: #fff; }
+.nd-ha .service-block.nd-ha-armed { box-shadow: inset 0 0 0 1px rgb(65 189 245 / .5); }
+.nd-ha .service-block.nd-ha-alert { background: rgb(239 68 68 / .35) !important; color: #fff; }
+
+/* Floating panel: lift the card/group above the cards below and unclip them. */
+.service-card.nd-ha-open { overflow: visible !important; z-index: 40; }
+li.service:has(.nd-ha-open), .services-group:has(.nd-ha-open) { position: relative; z-index: 40; }
+.services-group:has(.nd-ha-open) .overflow-hidden { overflow: visible !important; }
+.nd-ha-panel {
+  position: absolute; right: 0; top: calc(100% + 0.25rem); width: max(100%, 24rem); z-index: 40;
+  padding: 0.6rem; border-radius: 0.375rem; user-select: none; color: rgb(var(--color-200));
+  background: rgb(24 32 46); border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.55); backdrop-filter: blur(12px);
+  animation: nd-drop .14s ease-out;
+}
+@keyframes nd-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.nd-ha-sec { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .05em; opacity: .55; margin: 0.5rem 0 0.3rem; }
+.nd-ha-sec:first-child { margin-top: 0; }
+.nd-ha-sec small { text-transform: none; letter-spacing: 0; margin-left: 0.3rem; opacity: .9; }
+.nd-ha-lights { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; }
+.nd-ha-light { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+  padding: 0.35rem 0.45rem; border-radius: 0.3rem; background: rgb(255 255 255 / 0.04);
+  font-size: 0.66rem; text-align: left; cursor: pointer; transition: background .15s; }
+.nd-ha-light span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-ha-light:hover { background: rgb(255 255 255 / 0.09); }
+.nd-ha-light.on { color: #fff; }
+.nd-ha-light.na { opacity: .4; cursor: default; }
+.nd-ha-sw { flex-shrink: 0; width: 1.6rem; height: 0.9rem; border-radius: 9999px; background: rgb(255 255 255 / 0.15); position: relative; transition: background .15s; }
+.nd-ha-sw b { position: absolute; top: 2px; left: 2px; width: calc(0.9rem - 4px); height: calc(0.9rem - 4px); border-radius: 50%; background: #fff; transition: left .15s; }
+.nd-ha-light.on .nd-ha-sw { background: #f59e0b; }
+.nd-ha-light.on .nd-ha-sw b { left: calc(1.6rem - 0.9rem + 2px); }
+.nd-ha-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
+.nd-ha-row-l { font-size: 0.68rem; }
+.nd-ha-seg { display: inline-flex; gap: 0.2rem; flex-wrap: wrap; }
+.nd-ha-seg button { padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.6rem; font-weight: 600;
+  background: rgb(255 255 255 / 0.05); cursor: pointer; opacity: .8; }
+.nd-ha-seg button:hover { background: rgb(255 255 255 / 0.1); opacity: 1; }
+.nd-ha-seg button.on { background: #41bdf5; color: #002233; opacity: 1; }
+.nd-ha-temp { display: inline-flex; align-items: center; gap: 0.35rem; }
+.nd-ha-temp b { font-size: 0.8rem; font-weight: 600; min-width: 2.6rem; text-align: center; color: rgb(var(--color-100)); }
+.nd-ha-temp button { width: 1.5rem; height: 1.5rem; border-radius: 50%; background: rgb(255 255 255 / 0.06); cursor: pointer; font-size: 0.85rem; }
+.nd-ha-temp button:hover { background: rgb(255 255 255 / 0.14); }
+.nd-ha-temp.dim { opacity: .45; }
+.nd-ha-msg { font-size: 0.66rem; opacity: .7; padding: 0.3rem 0; }
+.nd-ha-msg.err { color: #f87171; opacity: 1; }
+
+/* ═══ Steam (one wide card, mirrors ABS/Spotify) ═══════════════════════════ */
+.service-card.nd-st-host {
+  display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.9fr);
+  grid-template-rows: auto 1fr; column-gap: 0.5rem; align-items: start; position: relative;
+}
+.service-card.nd-st-host > :not(.nd-st):not(.nd-st-pop) { grid-column: 1; }
+.service-card.nd-st-host > .service-title { grid-row: 1; position: relative; }
+.service-card.nd-st-host > .nd-st-side { grid-row: 2; }
+.service-card.nd-st-host > .nd-st { grid-column: 2; grid-row: 1 / span 2; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; }
+.nd-st-side { user-select: none; }
+.nd-st-side .nd-st-click { cursor: pointer; transition: filter .15s; }
+.nd-st-side .nd-st-click:hover { filter: brightness(1.35); }
+.nd-st-shelf { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin: 0.1rem 0.25rem 0.35rem; }
+.nd-st-shelf-label { flex-basis: 100%; font-size: 0.58rem; text-transform: uppercase; letter-spacing: .05em; opacity: .5; }
+.nd-st-cap { width: 1.75rem; height: 2.5rem; border-radius: 0.2rem; overflow: hidden; cursor: pointer; opacity: .8;
+  background: rgb(255 255 255 / 0.06); transition: opacity .15s, transform .15s; }
+.nd-st-cap:hover { opacity: 1; transform: translateY(-1px); }
+.nd-st-cap img { width: 100%; height: 100%; object-fit: cover; }
+
+.nd-st { margin: 0.25rem 0.25rem 0.25rem 0; padding: 0.5rem; border-radius: 0.375rem; position: relative;
+  background: rgb(255 255 255 / 0.04); color: rgb(var(--color-200)); user-select: none; }
+.nd-st-main { display: flex; gap: 0.6rem; }
+.nd-st-art { width: 9.4rem; height: 4.4rem; flex-shrink: 0; border-radius: 0.3rem; object-fit: cover;
+  background: rgb(255 255 255 / 0.06); box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
+.nd-st-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+.nd-st-top { display: flex; gap: 0.4rem; align-items: flex-start; }
+.nd-st-meta { flex: 1; min-width: 0; line-height: 1.25; }
+.nd-st-title { font-size: 0.82rem; font-weight: 600; color: rgb(var(--color-100)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-st-sub, .nd-st-accent { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-st-sub { opacity: .7; }
+.nd-st-accent { margin-top: 0.1rem; }
+.nd-st-ready { color: #66c0f4; }
+.nd-st-live { color: #57cbde; }
+.nd-st-upd { color: #f59e0b; }
+.nd-st-err { color: #f87171; }
+.nd-st-opts { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.nd-st-opts button { display: inline-flex; align-items: center; gap: 0.3rem; height: 1.5rem; padding: 0 0.5rem; border-radius: 9999px;
+  background: rgb(255 255 255 / 0.05); color: rgb(var(--color-200)); font-size: 0.6rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s; }
+.nd-st-opts button:hover, .nd-st-opts button.on { background: rgb(255 255 255 / 0.12); color: #fff; }
+.nd-st-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: rgb(255 255 255 / 0.3); display: inline-block; }
+.nd-st-dot.on { background: #57cbde; box-shadow: 0 0 0 2px rgb(87 203 222 / .2); }
+.nd-st-ctrls { display: flex; justify-content: center; margin-top: 0.3rem; }
+.nd-st-play { display: inline-flex; align-items: center; gap: 0.35rem; height: 1.9rem; padding: 0 1.3rem; border-radius: 9999px;
+  background: linear-gradient(90deg, #75b022, #588a1b); color: #fff; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .3); transition: filter .15s; }
+.nd-st-play:hover { filter: brightness(1.12); }
+.nd-st-play.running { background: rgb(87 203 222 / .2); color: #57cbde; box-shadow: none; }
+
+/* Library popout: floats over the cards below. */
+.service-card.nd-st-open { overflow: visible !important; z-index: 40; }
+li.service:has(.nd-st-open), .services-group:has(.nd-st-open) { position: relative; z-index: 40; }
+.services-group:has(.nd-st-open) .overflow-hidden { overflow: visible !important; }
+.nd-st-pop { position: absolute; left: 0; right: 0; top: calc(100% + 0.25rem); z-index: 40;
+  padding: 0.55rem; border-radius: 0.375rem; background: rgb(24 32 46); border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.55); color: rgb(var(--color-200)); animation: nd-drop .14s ease-out; }
+.nd-st-pophead { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.45rem; flex-wrap: wrap; }
+.nd-st-search { flex: 1; min-width: 8rem; height: 1.7rem; padding: 0 0.6rem; border-radius: 0.3rem; font-size: 0.7rem;
+  background: rgb(255 255 255 / 0.06); border: 1px solid rgb(255 255 255 / 0.1); color: rgb(var(--color-100)); outline: none; }
+.nd-st-search:focus { border-color: #66c0f4; }
+.nd-st-seg { display: inline-flex; gap: 0.2rem; }
+.nd-st-seg button, .nd-st-open-steam { padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.6rem; font-weight: 600;
+  background: rgb(255 255 255 / 0.05); cursor: pointer; opacity: .8; white-space: nowrap; }
+.nd-st-seg button:hover, .nd-st-open-steam:hover { background: rgb(255 255 255 / 0.1); opacity: 1; }
+.nd-st-seg button.on { background: #66c0f4; color: #0b1a26; opacity: 1; }
+.nd-st-list { max-height: 19rem; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem;
+  scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .2) transparent; }
+.nd-st-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem; border-radius: 0.3rem; text-align: left; cursor: pointer;
+  background: rgb(255 255 255 / 0.03); transition: background .15s; min-width: 0; }
+.nd-st-row:hover { background: rgb(255 255 255 / 0.09); }
+.nd-st-rowart { width: 6.9rem; height: 2.58rem; flex-shrink: 0; border-radius: 0.2rem; overflow: hidden; background: rgb(255 255 255 / 0.06); display: block; }
+.nd-st-rowart img { width: 100%; height: 100%; object-fit: cover; }
+.nd-st-row-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; gap: 0.1rem; }
+.nd-st-row-t b { font-size: 1.02rem; font-weight: 600; color: rgb(var(--color-100)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-st-row-t small { font-size: 0.87rem; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-st-row-t em { font-style: normal; }
+.nd-st-row-t em.live { color: #57cbde; } .nd-st-row-t em.upd { color: #f59e0b; }
+.nd-st-row-play { flex-shrink: 0; width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center; font-size: 0.9rem;
+  background: rgb(117 176 34 / .2); color: #a4d007; opacity: 0; transition: opacity .15s; }
+.nd-st-row:hover .nd-st-row-play { opacity: 1; }
+.nd-st-msg { grid-column: 1 / -1; font-size: 0.68rem; opacity: .7; padding: 0.5rem 0.2rem; }
+
+/* games without Steam CDN art get an initials tile */
+.nd-st-noart { display: grid !important; place-items: center; background: linear-gradient(135deg, #2a475e, #1b2838) !important; }
+.nd-st-noart::after { content: attr(data-i); font-size: 0.6rem; font-weight: 700; color: #c7d5e0; letter-spacing: .03em; }
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║ THEME: TERMINAL STEEL                                                    ║
+   ║ Monospace, square hairlines, translucent glass panels, white + one blue. ║
+   ║ Remove this whole block (and the @import at the top) to revert.          ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+:root {
+  --st-text: #c9d0da; --st-bright: #f4f6f9; --st-dim: #7a8494; --st-muted: #9aa4b2;
+  --st-line: rgba(255,255,255,.14); --st-line-soft: rgba(255,255,255,.08);
+  --st-bar: rgba(255,255,255,.045); --st-panel: rgba(10,12,16,.55);
+  --st-blue: #6ea8ff; --st-warn: #f5a524; --st-white: #eef1f5;
+}
+html, body, body * { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace !important; }
+body { color: var(--st-text); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── cards: glass window with a title bar ── */
+.service-card {
+  border-radius: 0 !important; box-shadow: none !important;
+  background: var(--st-panel) !important;
+  background-image: none !important;
+  border: 1px solid var(--st-line) !important;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.service-title {
+  background: var(--st-bar); border-bottom: 1px solid var(--st-line-soft);
+  margin: -4px -4px 4px; padding: 0 4px; min-height: 0;
+}
+.service-title .service-icon { width: 1.9rem !important; }
+.service-title .service-icon img, .service-title .service-icon svg, .service-title .service-icon > div, .service-title .service-icon > div > * {
+  width: 1.15rem !important; height: 1.15rem !important; max-width: 1.15rem !important; max-height: 1.15rem !important; object-fit: contain;
+}
+.service-title .service-name {
+  display: flex !important; align-items: baseline; flex-wrap: wrap; column-gap: .3rem;
+  padding: .32rem .25rem !important; font-size: .78rem !important; line-height: 1.2;
+  text-transform: lowercase; color: var(--st-bright); font-weight: 600;
+}
+.service-title .service-name::before { content: "["; color: var(--st-dim); font-weight: 400; order: 0; }
+.service-title .service-name::after  { content: "]"; color: var(--st-dim); font-weight: 400; order: 1; }
+.service-title .service-description {
+  order: 2; font-size: .64rem !important; color: var(--st-dim) !important; font-weight: 400 !important;
+  text-transform: lowercase; margin: 0 !important;
+}
+.service-title .service-description::before { content: "· "; }
+.service-tags { top: 0 !important; right: .45rem !important; height: 1.95rem; display: flex !important; align-items: center; }
+.service-tags > * { margin: 0 !important; }
+.service-tags [class*="rounded-full"] { border-radius: 1px !important; width: .5rem !important; height: .5rem !important; }
+
+/* ── stat cells ── */
+.service-block {
+  border-radius: 0 !important; background: rgba(255,255,255,.028) !important;
+  border: 1px solid var(--st-line-soft); padding: .35rem .25rem !important;
+}
+.service-block > div:first-child { font-weight: 500 !important; color: var(--st-bright); font-size: .8rem !important; white-space: nowrap; letter-spacing: -.03em; }
+.service-block > div:last-child {
+  font-weight: 400 !important; text-transform: lowercase !important; color: var(--st-dim);
+  font-size: .62rem !important; letter-spacing: .02em;
+}
+
+/* ── search + weather ── */
+#information-widgets input, #information-widgets button, #information-widgets [class*="rounded"] { border-radius: 0 !important; }
+#information-widgets input { background: var(--st-panel) !important; border-color: var(--st-line) !important; backdrop-filter: blur(10px); }
+
+/* ── every custom panel: square, hairline ── */
+.nd-abs, .nd-sp, .nd-st, .nd-sp-left, .nd-sp-right, .nd-sys-tile, .nd-ha-panel, .nd-st-pop, .nd-sp-pop,
+.nd-abs-cover, .nd-sp-cover, .nd-st-art, .nd-st-cap, .nd-abs-shelf-item, .nd-sp-item img, .nd-st-rowart, .nd-st-row, .nd-sp-item,
+.nd-ha-light, .nd-st-search { border-radius: 0 !important; }
+.nd-abs, .nd-sp, .nd-st { background: rgba(255,255,255,.025) !important; border: 1px solid var(--st-line-soft); }
+.nd-ctrls button, .nd-abs-opts button, .nd-sp-opts button, .nd-st-opts button, .nd-ha-pill, .nd-sp-tabs button,
+.nd-st-seg button, .nd-st-open-steam, .nd-ha-seg button, .nd-ha-temp button, .nd-st-play, .nd-sp-connect-btn {
+  border-radius: 2px !important; border: 1px solid var(--st-line) !important; background: transparent !important;
+  color: var(--st-text) !important; box-shadow: none !important;
+}
+.nd-ctrls button:hover, .nd-abs-opts button:hover, .nd-sp-opts button:hover, .nd-st-opts button:hover, .nd-ha-pill:hover,
+.nd-sp-tabs button:hover, .nd-st-seg button:hover, .nd-st-open-steam:hover, .nd-ha-seg button:hover, .nd-ha-temp button:hover,
+.nd-abs-opts button.on, .nd-sp-opts button.on, .nd-st-opts button.on, .nd-ha-pill.on {
+  background: rgba(255,255,255,.08) !important; color: var(--st-bright) !important;
+}
+/* primary actions: solid white */
+.nd-abs .nd-main, .nd-sp .nd-main, .nd-st-play, .nd-sp-tabs button.on, .nd-st-seg button.on, .nd-ha-seg button.on, .nd-sp-connect-btn {
+  background: var(--st-white) !important; color: #0b0d11 !important; border-color: var(--st-white) !important;
+}
+.nd-abs .nd-main:hover, .nd-sp .nd-main:hover, .nd-st-play:hover { background: #ffffff !important; }
+.nd-st-play.running { background: transparent !important; color: var(--st-blue) !important; border-color: var(--st-blue) !important; }
+/* progress + highlights */
+.nd-abs-bar .nd-fill, .nd-sp-bar .nd-fill { background: var(--st-white) !important; }
+.nd-bar { border-radius: 0 !important; background: rgba(255,255,255,.1) !important; }
+.nd-fill { border-radius: 0 !important; }
+.nd-abs-chapter, .nd-sp-accent, .nd-st-ready, .nd-st-live, .nd-toggle.on, .nd-sp-dev.on, .nd-st-row-t em.live { color: var(--st-blue) !important; }
+.nd-abs-shelf-item i { background: var(--st-blue) !important; }
+.nd-st-dot.on { background: var(--st-blue) !important; box-shadow: none !important; border-radius: 0 !important; }
+.nd-st-dot { border-radius: 0 !important; }
+.nd-sp-vol::-webkit-slider-thumb, .nd-abs-vol::-webkit-slider-thumb { background: var(--st-white) !important; border-radius: 0 !important; }
+.nd-ha-light.on .nd-ha-sw { background: var(--st-blue) !important; }
+.nd-ha-sw, .nd-ha-sw b { border-radius: 1px !important; }
+.nd-ha .service-block.nd-ha-armed { box-shadow: inset 0 0 0 1px var(--st-blue) !important; }
+.nd-st-row-play { border-radius: 0 !important; background: rgba(255,255,255,.08) !important; color: var(--st-bright) !important; }
+.nd-st-search:focus { border-color: var(--st-blue) !important; }
+.nd-ha-panel, .nd-st-pop, .nd-sp-pop { background: rgba(12,14,19,.96) !important; border-color: var(--st-line) !important; }
+/* section labels: lowercase terminal comments */
+.nd-abs-shelf-label, .nd-st-shelf-label, .nd-ha-sec, .nd-sp-pop-label { text-transform: lowercase !important; letter-spacing: 0 !important; }
+.nd-abs-shelf-label::before, .nd-st-shelf-label::before, .nd-ha-sec::before { content: "// "; }
+
+/* ── system strip: window tiles ── */
+.nd-sys-tile {
+  background: var(--st-panel) !important; border: 1px solid var(--st-line);
+  backdrop-filter: blur(10px); padding-top: 0 !important;
+}
+.nd-sys-head {
+  background: var(--st-bar); border-bottom: 1px solid var(--st-line-soft);
+  margin: 0 -.6rem .4rem !important; padding: .3rem .6rem; align-items: center !important;
+}
+.nd-sys-head img { width: 1rem; height: 1rem; flex-shrink: 0; }
+.nd-sys-head b { text-transform: lowercase; font-size: .78rem !important; }
+.nd-sys-head b::before { content: "[\00a0"; color: var(--st-dim); font-weight: 400; }
+.nd-sys-head b::after { content: "\00a0]"; color: var(--st-dim); font-weight: 400; }
+.nd-sys-head small { text-transform: lowercase; }
+.nd-sys-dot { border-radius: 1px !important; box-shadow: none !important; }
+.nd-sys-gpu-bar, .nd-sys-gpu-bar i { border-radius: 0 !important; }
+.nd-sys-ring span, .nd-sys-foot { text-transform: lowercase; }
+
+/* monospace is wider: keep tabs on one row */
+.nd-sp-tabs { flex-wrap: nowrap !important; gap: .15rem !important; }
+.nd-sp-tabs button { padding: .12rem .32rem !important; font-size: .54rem !important; letter-spacing: -.02em; }
+
+/* ═══ Keep two-column rows at any zoom ═════════════════════════════════════
+ * Zooming NasDash in narrows the page below Homepage's 768px breakpoint,
+ * where every multi-column row collapses to one column. Hold them at two;
+ * above 768px Homepage's own 2/3/4-column layouts apply as normal. */
+@media (max-width: 767.98px) {
+  ul.services-list[class*="md:grid-cols-2"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* ═══ Uniform 8px rhythm above the cards ═══════════════════════════════════
+ * The search/weather row is a 64px box with the 32px search bar centred in
+ * it, plus margins — so strip→search and search→cards were ~32px. Collapse
+ * it to its content so every gap on the page is the same 8px. */
+#information-widgets-right { margin-top: 0 !important; align-items: center !important; }
+#information-widgets-right > *, #information-widgets-right > * > * {
+  min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important;
+  margin-top: 0 !important; margin-bottom: 0 !important;
+}
+#layout-groups { margin-top: 8px !important; }
+/* search bar matches the weather block's 40px, so both gaps are exactly 8px */
+#information-widgets-right > *:first-child, #information-widgets-right > *:first-child > div,
+#information-widgets-right > *:first-child input, #information-widgets-right > *:first-child button { height: 40px !important; }
+#information-widgets-right > *:first-child input { font-size: .85rem !important; }
+/* Home "Controls" pill: sized for and centred in the slim steel title bar */
+.nd-ha-pill { top: .32rem !important; right: .5rem !important; height: 1.3rem !important; padding: 0 .5rem !important; font-size: .58rem !important; line-height: 1 !important; }
+
+/* Wide cards (Audiobookshelf, Spotify): title on its own line, subtitle
+ * centred beneath it with no leading dot; room reserved for the status light. */
+.nd-abs-host .service-title .service-name, .nd-sp-host .service-title .service-name {
+  display: grid !important; grid-template-columns: auto auto auto; justify-content: start;
+  column-gap: .3rem; row-gap: .05rem; padding-right: 1.4rem !important;
+}
+.nd-abs-host .service-title .service-description, .nd-sp-host .service-title .service-description {
+  grid-column: 1 / -1; justify-self: center; text-align: center;
+}
+.nd-abs-host .service-title .service-description::before, .nd-sp-host .service-title .service-description::before { content: none !important; }
+/* the long "[ audiobookshelf ]" title and subtitle fill their column, so the
+ * status light becomes a small badge on the icon's bottom-right corner.
+ * (Homepage wraps the 7px dot in a 16px-padded click area: drop that padding.) */
+.nd-abs-host .service-tags, .nd-sp-host .service-tags {
+  right: auto !important; bottom: auto !important; height: auto !important;
+  left: 22px !important; top: calc(50% + 4px) !important;
+}
+.nd-abs-host .service-tags .p-4, .nd-sp-host .service-tags .p-4 { padding: 0 !important; }
+.nd-abs-host .service-tags [class*="rounded-full"], .nd-sp-host .service-tags [class*="rounded-full"] {
+  width: 7px !important; height: 7px !important; box-shadow: 0 0 0 2px rgba(10,12,16,.95);
+}

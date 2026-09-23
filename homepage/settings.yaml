@@ -1,0 +1,65 @@
+---
+# Homepage settings - https://gethomepage.dev/configs/settings/
+
+title: Tabor Dashboard
+favicon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/homepage.png
+
+theme: dark
+color: slate
+
+headerStyle: clean
+
+# Status indicator style - colored dot instead of "RUNNING"/"HEALTHY" text
+statusStyle: "dot"
+
+# Layout: define column counts per service group (must match services.yaml)
+layout:
+  Hardware:
+    style: row
+    columns: 2
+    header: false
+    useEqualHeights: true
+  Listening:
+    style: row
+    columns: 1
+    header: false
+    useEqualHeights: false
+  Media:
+    style: row
+    columns: 2
+    header: false
+    useEqualHeights: true
+  Gaming:
+    style: row
+    columns: 1
+    header: false
+    useEqualHeights: false
+  Automation:
+    style: row
+    columns: 4
+    header: false
+    useEqualHeights: true
+  Tools:
+    style: row
+    columns: 4
+    header: false
+    useEqualHeights: true
+
+# Open links in a new tab by default (for browser use)
+target: _blank
+
+# Hide the version footer
+hideVersion: true
+
+# Background opacity for cards
+background:
+  blur: sm
+  saturate: 50
+  brightness: 50
+  opacity: 50
+
+# Quick launch in search bar
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  showSearchSuggestions: true

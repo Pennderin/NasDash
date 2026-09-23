@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; outline: none !important; }
+  *:focus, *:focus-visible, *:focus-within { outline: none !important; box-shadow: none !important; }
+  ::selection { background: transparent; }
+
+  :root {
+    --bg-alpha: 0.92;
+    --bg: rgba(23, 26, 33, var(--bg-alpha));
+    --surface: rgba(27, 40, 56, var(--bg-alpha));
+    --border: rgba(255, 255, 255, 0.04);
+    --border-glow: rgba(102, 192, 244, 0.2);
+    --text: #c7d5e0;
+    --text-dim: #8f98a0;
+    --text-bright: #ffffff;
+    --cyan: #66c0f4;
+    --cyan-dim: rgba(102, 192, 244, 0.1);
+    --cyan-glow: rgba(102, 192, 244, 0.2);
+    --green: #a4d007;
+    --orange: #cf9e18;
+    --red: #c33c54;
+    --red-dim: rgba(195, 60, 84, 0.1);
+    --cr: 4px;
+  }
+
+  html, body { background: transparent !important; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text); user-select: none;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+
+  .resize-edge { position: fixed; z-index: 999; }
+  .resize-edge.top    { top: 0;     left: 6px;  right: 6px; height: 6px;  cursor: n-resize; }
+  .resize-edge.bottom { bottom: 0;  left: 6px;  right: 6px; height: 6px;  cursor: s-resize; }
+  .resize-edge.left   { top: 6px;   left: 0;    bottom: 6px;width: 6px;  cursor: w-resize; }
+  .resize-edge.right  { top: 6px;   right: 0;   bottom: 6px;width: 6px;  cursor: e-resize; }
+  .resize-edge.top-left     { top: 0;    left: 0;     width: 10px; height: 10px; cursor: nw-resize; }
+  .resize-edge.top-right    { top: 0;    right: 0;    width: 10px; height: 10px; cursor: ne-resize; }
+  .resize-edge.bottom-left  { bottom: 0; left: 0;     width: 10px; height: 10px; cursor: sw-resize; }
+  .resize-edge.bottom-right { bottom: 0; right: 0;    width: 10px; height: 10px; cursor: se-resize; }
+  body.locked .resize-edge { display: none; }
+
+  .resize-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 998;
+    background: transparent;
+    cursor: inherit;
+  }
+  body.resizing .resize-overlay { display: block; }
+
+  .widget-wrap { display: flex; flex-direction: column; height: 100vh; padding: 6px; gap: 0; }
+  body.collapsed .widget-wrap { height: auto; }
+  body.collapsed .content-area { display: none; }
+
+  .header-card {
+    background: rgba(23, 26, 33, var(--bg-alpha));
+    border: 1px solid var(--border);
+    border-radius: var(--cr);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    flex-shrink: 0;
+    margin-bottom: 4px;
+    z-index: 50;
+    position: relative;
+    overflow: visible;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+  }
+  .header-card::before {
+    content: ''; position: absolute; top: -1px; left: 10%; right: 10%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(102, 192, 244, 0.12), transparent);
+    pointer-events: none;
+  }
+  .header {
+    padding: 8px 12px 6px;
+    display: flex; align-items: center; justify-content: space-between;
+    -webkit-app-region: drag; cursor: grab;
+  }
+  body.locked .header { -webkit-app-region: no-drag; cursor: default; }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  .logo {
+    width: 26px; height: 22px; border: 1px solid var(--cyan); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700; color: var(--cyan); letter-spacing: 1px;
+    box-shadow: 0 0 8px rgba(102, 192, 244, 0.15);
+  }
+  .header-title { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--cyan); }
+  .header-right { display: flex; align-items: center; gap: 5px; -webkit-app-region: no-drag; }
+  .header-time { font-size: 9px; color: var(--text-dim); }
+  .hdr-btn {
+    cursor: pointer; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 2px; font-size: 10px; color: var(--text-dim);
+    transition: all .15s; line-height: 1; border: 1px solid transparent;
+  }
+  .hdr-btn:hover { border-color: var(--border-glow); color: var(--text); background: rgba(0, 200, 255, 0.04); }
+  .hdr-btn.close:hover { border-color: rgba(255, 51, 85, 0.2); color: var(--red); background: var(--red-dim); }
+  .hdr-btn.lock-active { color: var(--orange); border-color: rgba(255, 136, 0, 0.2); }
+  .hdr-btn.desktop-off { color: var(--cyan); border-color: rgba(0, 200, 255, 0.2); }
+
+  .caret-wrap { position: relative; }
+  .caret-menu {
+    display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+    background: rgba(27, 40, 56, 0.98); border: 1px solid var(--border-glow);
+    border-radius: var(--cr); padding: 4px; z-index: 100; min-width: 180px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .caret-menu.open { display: block; }
+  .caret-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px; border-radius: 2px; cursor: pointer;
+    font-size: 8px; color: var(--text-dim); transition: all .12s; white-space: nowrap;
+  }
+  .caret-item:hover { background: rgba(0, 200, 255, 0.04); color: var(--text); }
+  .caret-item.flash-success {
+    background: rgba(164, 208, 7, 0.15) !important;
+    color: var(--green) !important;
+  }
+  .caret-item .ci-icon { width: 14px; text-align: center; font-size: 10px; }
+  .caret-item .ci-label { flex: 1; }
+  .caret-item .ci-state { font-size: 7px; opacity: .5; }
+
+  .caret-divider {
+    height: 1px; background: var(--border-glow); opacity: .3;
+    margin: 4px 6px;
+  }
+  .caret-slider-row {
+    padding: 6px 8px 8px;
+    display: flex; flex-direction: column; gap: 4px;
+    cursor: default;
+  }
+  .caret-slider-row .csr-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 8px; color: var(--text-dim);
+  }
+  .caret-slider-row .csr-head .ci-icon { width: 14px; text-align: center; font-size: 10px; }
+  .caret-slider-row .csr-head .csr-val {
+    margin-left: auto; font-family: 'Orbitron', sans-serif;
+    font-size: 8px; color: var(--cyan); letter-spacing: .5px;
+  }
+  .caret-slider-row input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    cursor: pointer;
+  }
+  .caret-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--cyan); border: 1px solid rgba(0,0,0,0.4);
+    box-shadow: 0 0 4px rgba(102, 192, 244, 0.4);
+    cursor: pointer;
+  }
+
+  .zoom-overlay {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(27, 40, 56, 0.95); border: 1px solid var(--border-glow);
+    border-radius: var(--cr); padding: 4px 10px;
+    font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 500; letter-spacing: 1px;
+    color: var(--cyan); z-index: 200; pointer-events: none;
+    opacity: 0; transition: opacity .25s;
+  }
+  .zoom-overlay.visible { opacity: 1; }
+
+  .content-area {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    background: rgba(23, 26, 33, var(--bg-alpha));
+    border: 1px solid var(--border);
+    border-radius: var(--cr); overflow: hidden;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+  }
+  webview {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="resize-edge top" data-edge="top"></div>
+<div class="resize-edge bottom" data-edge="bottom"></div>
+<div class="resize-edge left" data-edge="left"></div>
+<div class="resize-edge right" data-edge="right"></div>
+<div class="resize-edge top-left" data-edge="top-left"></div>
+<div class="resize-edge top-right" data-edge="top-right"></div>
+<div class="resize-edge bottom-left" data-edge="bottom-left"></div>
+<div class="resize-edge bottom-right" data-edge="bottom-right"></div>
+
+<div class="resize-overlay" id="resizeOverlay"></div>
+
+<div class="widget-wrap">
+
+  <div class="header-card">
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">ND</div>
+        <span class="header-title">Unraid NAS</span>
+      </div>
+      <div class="header-right">
+        <div class="hdr-btn" onclick="reloadDashboard()" title="Reload">&#x21BB;</div>
+        <div class="hdr-btn" onclick="toggleCollapse()" title="Collapse" id="collapseBtn">&#x2014;</div>
+        <span class="header-time" id="clock"></span>
+        <div class="hdr-btn" id="desktopBtn" onclick="toggleDesktopIcons()" title="Desktop icons">&#x1F4C1;</div>
+        <div class="caret-wrap">
+          <div class="hdr-btn" id="caretBtn" onclick="toggleCaretMenu()" title="Settings">&#x2699;</div>
+          <div class="caret-menu" id="caretMenu">
+            <div class="caret-item" onclick="toggleLock()">
+              <span class="ci-icon" id="lockIcon">&#x1F513;</span>
+              <span class="ci-label">Lock</span>
+              <span class="ci-state" id="lockState">off</span>
+            </div>
+            <div class="caret-item" onclick="resetZoom()">
+              <span class="ci-icon">&#x21BA;</span>
+              <span class="ci-label">Reset zoom</span>
+              <span class="ci-state" id="zoomState">100%</span>
+            </div>
+            <div class="caret-item" id="saveLayoutItem" onclick="saveLayout()">
+              <span class="ci-icon" id="saveIcon">&#x1F4BE;</span>
+              <span class="ci-label" id="saveLabel">Save layout</span>
+              <span class="ci-state" id="saveState">for this display</span>
+            </div>
+            <div class="caret-divider"></div>
+            <div class="caret-slider-row">
+              <div class="csr-head">
+                <span class="ci-icon">&#x25D0;</span>
+                <span>Opacity</span>
+                <span class="csr-val" id="opacityVal">92%</span>
+              </div>
+              <input type="range" id="opacitySlider" min="20" max="100" step="1" value="92">
+            </div>
+          </div>
+        </div>
+        <div class="hdr-btn close" onclick="hideToTray()" title="Hide to tray">&#x2715;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-area">
+    <webview id="homepage" src="http://192.168.0.190:3000" allowpopups></webview>
+    <div class="zoom-overlay" id="zoomOverlay">100%</div>
+  </div>
+
+</div>
+
+<script>
+const { ipcRenderer } = require('electron');
+const $ = id => document.getElementById(id);
+
+let isLocked = false;
+let collapsed = false;
+let zoomHideTimer = null;
+
+const webview = $('homepage');
+
+document.addEventListener('mousedown', (e) => {
+  if (e.target.matches('input,textarea,select')) return;
+  if (document.activeElement) document.activeElement.blur();
+});
+
+// ─── Window resize via edges ────────────────────────────────────────────────
+// Mouse deltas are accumulated and sent at most once per animation frame,
+// instead of one IPC round-trip per mousemove event.
+let wr = false, we = '', wlx = 0, wly = 0, accX = 0, accY = 0, rafId = 0;
+
+function flushResize() {
+  rafId = 0;
+  if (accX || accY) ipcRenderer.send('resize', we, accX, accY);
+  accX = accY = 0;
+}
+
+function endResize() {
+  if (!wr) return;
+  wr = false;
+  if (rafId) { cancelAnimationFrame(rafId); flushResize(); }
+  document.body.classList.remove('resizing');
+}
+
+document.querySelectorAll('.resize-edge').forEach(el => {
+  el.addEventListener('mousedown', e => {
+    if (isLocked) return;
+    wr = true; we = el.dataset.edge; wlx = e.screenX; wly = e.screenY;
+    document.body.classList.add('resizing');
+    e.preventDefault();
+  });
+});
+
+window.addEventListener('mousemove', e => {
+  if (!wr) return;
+  if (e.buttons === 0) { endResize(); return; }
+  accX += e.screenX - wlx; accY += e.screenY - wly;
+  wlx = e.screenX; wly = e.screenY;
+  if (!rafId) rafId = requestAnimationFrame(flushResize);
+});
+window.addEventListener('mouseup', endResize);
+window.addEventListener('blur', endResize);
+document.addEventListener('mouseleave', endResize);
+
+// ─── Zoom indicator ─────────────────────────────────────────────────────────
+function setZoomLabel(factor) {
+  $('zoomState').textContent = Math.round((factor || 1) * 100) + '%';
+}
+
+ipcRenderer.on('zoom-updated', (ev, factor) => {
+  const ov = $('zoomOverlay');
+  ov.textContent = Math.round(factor * 100) + '%';
+  ov.classList.add('visible');
+  clearTimeout(zoomHideTimer);
+  zoomHideTimer = setTimeout(() => ov.classList.remove('visible'), 800);
+  setZoomLabel(factor);
+});
+
+function resetZoom() { ipcRenderer.send('zoom-reset'); }
+ipcRenderer.invoke('get-zoom').then(setZoomLabel);
+
+// ─── Save layout ───────────────────────────────────────────────────────────
+function saveLayout() {
+  const item = $('saveLayoutItem'), label = $('saveLabel'), stateEl = $('saveState'), icon = $('saveIcon');
+  const orig = [label.textContent, stateEl.textContent, icon.innerHTML];
+
+  ipcRenderer.invoke('save-layout').then(res => {
+    if (!res || !res.ok) return;
+    item.classList.add('flash-success');
+    icon.innerHTML = '&#x2714;';
+    label.textContent = 'Saved';
+    stateEl.textContent = res.fingerprint || '';
+    setTimeout(() => {
+      item.classList.remove('flash-success');
+      [label.textContent, stateEl.textContent, icon.innerHTML] = orig;
+    }, 1400);
+  });
+}
+
+// ─── Opacity slider ─────────────────────────────────────────────────────────
+// 'input' updates the look live while dragging; 'change' fires once on
+// release and is the only time the value is written to disk.
+function applyOpacity(value) {
+  const v = Math.max(0.20, Math.min(1.0, value));
+  document.documentElement.style.setProperty('--bg-alpha', v);
+  $('opacityVal').textContent = Math.round(v * 100) + '%';
+  return v;
+}
+
+const opacitySlider = $('opacitySlider');
+opacitySlider.addEventListener('input',  e => applyOpacity(e.target.value / 100));
+opacitySlider.addEventListener('change', e => ipcRenderer.send('save-opacity', applyOpacity(e.target.value / 100)));
+opacitySlider.addEventListener('mousedown', e => e.stopPropagation());
+
+ipcRenderer.invoke('get-opacity').then(o => {
+  const v = typeof o === 'number' ? o : 0.92;
+  opacitySlider.value = Math.round(v * 100);
+  applyOpacity(v);
+});
+
+// ─── Caret menu ─────────────────────────────────────────────────────────────
+function toggleCaretMenu() { $('caretMenu').classList.toggle('open'); }
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'opacitySlider') return;
+  const wrap = document.querySelector('.caret-wrap');
+  if (wrap && !wrap.contains(e.target)) $('caretMenu').classList.remove('open');
+});
+
+// ─── Lock ──────────────────────────────────────────────────────────────────
+function applyLockState(l) {
+  isLocked = !!l;
+  document.body.classList.toggle('locked', isLocked);
+  $('lockIcon').innerHTML = isLocked ? '&#x1F512;' : '&#x1F513;';
+  $('lockState').textContent = isLocked ? 'on' : 'off';
+}
+function toggleLock() { ipcRenderer.send('toggle-lock'); }
+ipcRenderer.on('lock-state', (ev, l) => applyLockState(l));
+ipcRenderer.invoke('get-lock-state').then(applyLockState);
+
+// ─── Collapse ──────────────────────────────────────────────────────────────
+function toggleCollapse() {
+  collapsed = !collapsed;
+  document.body.classList.toggle('collapsed', collapsed);
+  $('collapseBtn').innerHTML = collapsed ? '&#x25A1;' : '&#x2014;';
+  ipcRenderer.send(collapsed ? 'collapse-widget' : 'expand-widget');
+}
+
+// ─── Clock ─────────────────────────────────────────────────────────────────
+function updateClock() {
+  $('clock').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Desktop icons toggle ──────────────────────────────────────────────────
+let desktopIconsOn = true;
+function toggleDesktopIcons() {
+  desktopIconsOn = !desktopIconsOn;
+  ipcRenderer.send('toggle-desktop-icons');
+  $('desktopBtn').classList.toggle('desktop-off', !desktopIconsOn);
+}
+
+// ─── Hide / reload ─────────────────────────────────────────────────────────
+function hideToTray() { ipcRenderer.send('hide-window'); }
+
+function reloadDashboard() { if (webview) webview.reloadIgnoringCache(); }
+ipcRenderer.on('reload-webview', reloadDashboard);
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+---
+# Homepage services config - https://gethomepage.dev/configs/services/
+
+- Hardware:
+    - Speed:
+        target: _self
+        icon: mdi-speedometer-#06b6d4
+        href: http://192.168.0.190:7791/run-both
+        description: WAN vs VPN
+        widget:
+          type: customapi
+          url: http://192.168.0.190:7791/summary
+          refreshInterval: 15000
+          method: GET
+          display: block
+          mappings:
+            - field: wan_speed
+              label: WAN ↓/↑
+              additionalField:
+                field: running
+                format: text
+                color: adaptive
+                remap:
+                  - value: true
+                    to: "TESTING…"
+                  - value: false
+                    to: ""
+                  - any: true
+                    to: ""
+            - field: wan_ping
+              label: WAN Ping
+            - field: vpn_speed
+              label: VPN ↓/↑
+            - field: vpn_ping
+              label: VPN Ping
+
+    - Home:
+        icon: home-assistant.png
+        href: http://192.168.0.26:8123
+        description: Home Assistant
+
+- Listening:
+    - Audiobookshelf:
+        icon: audiobookshelf.png
+        href: http://192.168.0.190:13378
+        description: Audiobooks & Podcasts
+        server: nas
+        container: audiobookshelf
+        widget:
+          type: audiobookshelf
+          url: http://192.168.0.190:13378
+          key: <REDACTED — see docs/SECRETS.md>
+          fields: ["books", "booksDuration"]
+
+    - Spotify:
+        icon: spotify.png
+        href: https://open.spotify.com
+        description: Now Playing
+
+- Media:
+    - Plex:
+        icon: plex.png
+        href: http://192.168.0.190:32400/web
+        description: Movies, TV, Music
+        server: nas
+        container: Plex-Media-Server
+        widget:
+          type: plex
+          url: http://192.168.0.190:32400
+          key: <REDACTED — see docs/SECRETS.md>
+
+    - SABnzbd:
+        icon: sabnzbd.png
+        href: http://192.168.0.190:8090
+        description: Usenet
+        server: nas
+        container: sabnzbd
+        widget:
+          type: sabnzbd
+          url: http://192.168.0.190:8090
+          key: <REDACTED — see docs/SECRETS.md>
+
+- Gaming:
+    - Steam:
+        icon: steam.png
+        href: steam://open/library
+        description: Library
+
+- Automation:
+    - Seerr:
+        icon: overseerr.png
+        href: http://192.168.0.190:5055
+        description: Media Requests
+        server: nas
+        container: Seerr
+        widget:
+          type: seerr
+          url: http://192.168.0.190:5055
+          key: <REDACTED — see docs/SECRETS.md>
+
+    - Bazarr:
+        icon: bazarr.png
+        href: http://192.168.0.190:6767
+        description: Subtitles
+        server: nas
+        container: bazarr
+        widget:
+          type: bazarr
+          url: http://192.168.0.190:6767
+          key: <REDACTED — see docs/SECRETS.md>
+
+    - Radarr:
+        icon: radarr.png
+        href: http://192.168.0.190:7878
+        description: Movies
+        server: nas
+        container: radarr
+        widget:
+          type: radarr
+          url: http://192.168.0.190:7878
+          key: <REDACTED — see docs/SECRETS.md>
+
+    - Sonarr:
+        icon: sonarr.png
+        href: http://192.168.0.190:8989
+        description: TV Shows
+        server: nas
+        container: sonarr
+        widget:
+          type: sonarr
+          url: http://192.168.0.190:8989
+          key: <REDACTED — see docs/SECRETS.md>
+
+- Tools:
+    - Prowlarr:
+        icon: prowlarr.png
+        href: http://192.168.0.190:9696
+        description: Indexers
+        server: nas
+        container: prowlarr
+
+    - Hunterr:
+        icon: mdi-magnify-#3b82f6
+        href: http://192.168.0.190:9878
+        description: Torznab Proxy
+        server: nas
+        container: hunterr
+
+    - Homebridge:
+        icon: homebridge.png
+        href: http://192.168.0.190:8581
+        description: HomeKit Bridge
+        server: nas
+        container: homebridge
+
+    - JARVIS (Open WebUI):
+        icon: mdi-robot-#06b6d4
+        href: http://192.168.0.26:3000
+        description: Local AI Chat
