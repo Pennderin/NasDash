@@ -20,6 +20,7 @@ const FILES = {
   bounds:  path.join(stateDir, 'display-bounds.json'),
   state:   path.join(stateDir, 'widget-state.json'),
   opacity: path.join(stateDir, 'opacity.json'),
+  cams:    path.join(stateDir, 'cam-windows.json'),
 };
 
 const COLLAPSED_H    = 52;
@@ -227,6 +228,7 @@ function createWindow() {
     });
 
     contents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith(BRIDGE_ORIGIN + '/cams')) { openCamWindow(url); return { action: 'deny' }; }
       if (!isInternalUrl(url)) shell.openExternal(url).catch(() => {});
       else contents.loadURL(url).catch(() => {});
       return { action: 'deny' };
@@ -352,6 +354,40 @@ ipcMain.on('save-opacity', (ev, value) => {
 // the code to media-bridge on the NAS, which does the token exchange and
 // keeps the refresh token. Bound to 127.0.0.1 only — not reachable from LAN.
 const BRIDGE_ORIGIN = 'http://192.168.0.190:7792';
+// ─── Security camera windows ────────────────────────────────────────────────
+// Camera views from the dashboard's Security card open as real windows (not
+// browser tabs) so they can be dragged to another monitor. One window per view
+// (a single camera, or the grid); each remembers where it was left.
+const camWindows = new Map();
+function openCamWindow(url) {
+  let key = 'grid';
+  try { key = new URL(url).searchParams.get('src') || 'grid'; } catch {}
+  const existing = camWindows.get(key);
+  if (alive(existing)) { if (existing.isMinimized()) existing.restore(); existing.show(); existing.focus(); return; }
+  const saved = (readJSON(FILES.cams) || {})[key];
+  const w = new BrowserWindow({
+    ...(saved ? clampBoundsToDisplays(saved) : { width: key === 'grid' ? 1280 : 960, height: key === 'grid' ? 760 : 560 }),
+    title: 'NasDash Security',
+    backgroundColor: '#000000',
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'tray-icon.png'),
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+  });
+  w.setMenuBarVisibility(false);
+  if (saved && saved.maximized) w.maximize();
+  // Locked to the camera viewer: no popups, no navigating elsewhere.
+  w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  w.webContents.on('will-navigate', (e, u) => { if (!u.startsWith(BRIDGE_ORIGIN + '/cams')) e.preventDefault(); });
+  w.on('close', () => {
+    const all = readJSON(FILES.cams) || {};
+    all[key] = { ...w.getNormalBounds(), maximized: w.isMaximized() };
+    writeJSON(FILES.cams, all);
+  });
+  w.on('closed', () => camWindows.delete(key));
+  camWindows.set(key, w);
+  w.loadURL(url).catch(() => {});
+}
+
 function startOAuthLoopback() {
   const http = require('http');
   const srv = http.createServer(async (req, res) => {
@@ -394,7 +430,11 @@ app.whenReady().then(() => {
   createTray();
   watchDisplays();
   startOAuthLoopback();
+  // Coms card: Windows default-device guard + Wave Link mic control (loopback API :8889)
+  try { coms = require('./coms').start({ stateDir, origin: HOMEPAGE_ORIGIN, log: s => console.log(s) }); } catch (e) { console.error('coms failed:', e.message); }
 });
 
 // Keep running in the tray when the window is gone.
+let coms = null;
+app.on('will-quit', () => { try { coms?.stop(); } catch {} });
 app.on('window-all-closed', e => e.preventDefault());

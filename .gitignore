@@ -5,3 +5,13 @@ node_modules/
 *.log
 homepage/.last-nas-backup
 Thumbs.db
+# built on demand from audiodev.cs
+app/audiodev.exe
+# per-machine state and caches
+cam-windows.json
+coms.json
+display-bounds.json
+opacity.json
+widget-state.json
+store-art.json
+art-cache/

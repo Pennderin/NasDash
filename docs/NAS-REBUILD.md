@@ -28,6 +28,14 @@ Homepage's config folder is `/mnt/user/system/docker/homepage`.
 4. `bash nas-containers.sh media-bridge`
 5. On the dashboard: Spotify card → **Connect Spotify** (one-time login).
 
+## 2b. Security cameras (go2rtc)
+1. On JARVIS, in ring-mqtt's `config.json`: `"enable_cameras": true` plus a stream
+   username/password (docs/SECRETS.md > Ring cameras); restart ring-mqtt.
+2. Create `/mnt/user/appdata/go2rtc/go2rtc.yaml` (`chmod 600`) with one stream per camera
+   (`front_door`, `living_room`, `garage`) pointing at ring-mqtt, then
+   `bash nas-containers.sh go2rtc` and `bash nas-containers.sh media-bridge`.
+3. The camera names/ids the dashboard expects are listed in `media-bridge/server.js` (`CAMS`).
+
 ## 3. Beszel (system stats strip)
 **If `/mnt/user/appdata/beszel/hub` survived**: `bash nas-containers.sh beszel-hub` and you're done;
 users, systems and history are all in that folder.

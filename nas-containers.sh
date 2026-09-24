@@ -19,6 +19,19 @@ homepage() {
     ghcr.io/gethomepage/homepage:latest
 }
 
+network() { docker network inspect nasdash >/dev/null 2>&1 || docker network create nasdash >/dev/null; }
+
+go2rtc() {
+  # Camera relay for the Security card. Private: on the 'nasdash' network with
+  # NO published ports; only media-bridge can reach it. Config (camera stream
+  # URLs incl. ring-mqtt stream credentials): /mnt/user/appdata/go2rtc/go2rtc.yaml
+  network
+  [ -f /mnt/user/appdata/go2rtc/go2rtc.yaml ] || { echo "Missing go2rtc.yaml - see docs/SECRETS.md > Ring cameras"; return 1; }
+  docker rm -f go2rtc 2>/dev/null || true
+  docker run -d --name go2rtc --restart unless-stopped --network nasdash \
+    -v /mnt/user/appdata/go2rtc:/config alexxit/go2rtc:latest
+}
+
 media_bridge() {
   # API proxy for ABS / Spotify / Home Assistant / Beszel / Steam friends.
   # Code: /mnt/user/appdata/media-bridge/server.js (copy from media-bridge/ in this kit)
@@ -28,9 +41,10 @@ media_bridge() {
   mkdir -p /mnt/user/appdata/media-bridge
   [ -f /mnt/user/appdata/media-bridge/server.js ] || cp "$HERE/media-bridge/server.js" /mnt/user/appdata/media-bridge/
   docker rm -f media-bridge 2>/dev/null || true
-  docker run -d --name media-bridge --restart unless-stopped -p 7792:7792 \
+  network
+  docker run -d --name media-bridge --restart unless-stopped --network nasdash -p 7792:7792 \
     -v /mnt/user/appdata/media-bridge:/app:ro \
-    -v /mnt/user/appdata/media-bridge-data:/data \
+    -v /mnt/user/appdata/media-bridge-data:/data -v /var/local/emhttp:/emhttp:ro \
     -w /app --env-file "$ENVF" node:20-alpine node server.js
 }
 
@@ -59,7 +73,7 @@ beszel_agent() {
 }
 
 case "${1:-all}" in
-  homepage) homepage ;; media-bridge) media_bridge ;; beszel-hub) beszel_hub ;; beszel-agent) beszel_agent ;;
-  all) homepage; media_bridge; beszel_hub; beszel_agent ;;
-  *) echo "usage: $0 [all|homepage|media-bridge|beszel-hub|beszel-agent]"; exit 1 ;;
+  homepage) homepage ;; media-bridge) media_bridge ;; go2rtc) go2rtc ;; beszel-hub) beszel_hub ;; beszel-agent) beszel_agent ;;
+  all) homepage; go2rtc; media_bridge; beszel_hub; beszel_agent ;;
+  *) echo "usage: $0 [all|homepage|media-bridge|go2rtc|beszel-hub|beszel-agent]"; exit 1 ;;
 esac

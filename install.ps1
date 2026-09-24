@@ -84,7 +84,7 @@ Step 'NasDash app'
 $app = Join-Path $Target 'NasDashHomepage'
 New-Item -ItemType Directory -Force $app | Out-Null
 Copy-Item "$Kit\app\*" $app -Recurse -Force
-foreach ($f in 'display-bounds.json', 'opacity.json', 'widget-state.json') {
+foreach ($f in 'display-bounds.json', 'opacity.json', 'widget-state.json', 'cam-windows.json', 'coms.json') {
   $src = Join-Path $Private "nasdash-state\$f"
   if ((Test-Path $src) -and -not (Test-Path (Join-Path $app $f))) { Copy-Item $src $app }
 }
@@ -144,17 +144,15 @@ if (-not $NoStartup) {
   Ok 'NasDash, SteamAgent and BeszelAgent start at login'
 } else { Ok 'skipped (-NoStartup)' }
 
-# ── 7. daily backup task ────────────────────────────────────────────────────
-Step 'Daily backup to the NAS kit'
-if (-not $NoTask) {
-  if (Test-Path "$NasKit\backup.ps1") {
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$NasKit\backup.ps1`""
-    $trigger = New-ScheduledTaskTrigger -Daily -At 3:15am
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries
-    Register-ScheduledTask -TaskName 'NasDash Backup' -Action $action -Trigger $trigger -Settings $settings -Description 'Copies NasDash PC files to the NAS recovery kit' -Force | Out-Null
-    Ok 'task "NasDash Backup" runs daily at 3:15 AM (catches up if the PC was off)'
-  } else { Warn "NAS kit not reachable ($NasKit): backup task not created. Re-run once the NAS is up." }
-} else { Ok 'skipped (-NoTask)' }
+# ── 7. no PC-side backup task ────────────────────────────────────────────────
+# The PC deliberately runs NO scheduled scripts from the NAS (a script on a
+# share is code anyone with NAS access could change). Git is the source of
+# truth for rebuilds; remove the old task if an earlier install created it.
+Step 'Legacy backup task'
+if (Get-ScheduledTask -TaskName 'NasDash Backup' -ErrorAction SilentlyContinue) {
+  Unregister-ScheduledTask -TaskName 'NasDash Backup' -Confirm:$false
+  Ok 'removed old "NasDash Backup" task (the PC no longer runs scripts from the NAS)'
+} else { Ok 'none (good)' }
 
 # ── 8. firewall rule (needs admin once) ─────────────────────────────────────
 Step 'Firewall rule for the Steam agent (port 7790)'

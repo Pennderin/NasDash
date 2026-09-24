@@ -79,6 +79,7 @@ function scanAll() {
     const existing = byAppid.get(g.appid);
     if (!existing || g.lastPlayed > existing.lastPlayed) byAppid.set(g.appid, g);
   }
+  for (const g of scanShortcuts()) byAppid.set(g.appid, g);
   return [...byAppid.values()].sort((a, b) => b.lastPlayed - a.lastPlayed);
 }
 
@@ -196,6 +197,122 @@ function findArt(appid, kind) {
   return found;
 }
 
+// ── Non-Steam games (shortcuts.vdf) ──
+// Steam keeps non-Steam shortcuts in a binary VDF in the user's config folder.
+// They launch via steam://rungameid/<gameid64>, which is also used as their id
+// here, so the dashboard treats them like any other game.
+function steamUserCfg() {
+  try {
+    const ud = path.join(STEAM_ROOT, 'userdata');
+    let best = null, t = 0;
+    for (const id of fs.readdirSync(ud).filter(d => /^\d+$/.test(d))) {
+      const c = path.join(ud, id, 'config');
+      try { const m = fs.statSync(path.join(c, 'localconfig.vdf')).mtimeMs; if (m > t) { t = m; best = c; } } catch {}
+    }
+    return best;
+  } catch { return null; }
+}
+
+function parseBinVdf(buf) {
+  let i = 0;
+  const str = () => { const st = i; while (i < buf.length && buf[i] !== 0) i++; const o = buf.toString('utf8', st, i); i++; return o; };
+  const map = () => {
+    const o = {};
+    while (i < buf.length) {
+      const t = buf[i++];
+      if (t === 0x08) return o;
+      const k = str();
+      if (t === 0x00) o[k] = map();
+      else if (t === 0x01) o[k] = str();
+      else if (t === 0x02) { o[k] = buf.readUInt32LE(i); i += 4; }
+      else if (t === 0x07) { o[k] = buf.readBigUInt64LE(i); i += 8; }
+      else return o;
+    }
+    return o;
+  };
+  return map();
+}
+
+const sizeCache = new Map();   // dir -> { at, bytes }
+function dirSize(dir) {
+  const c = sizeCache.get(dir);
+  if (c && Date.now() - c.at < 6 * 3600 * 1000) return c.bytes;
+  let total = 0;
+  const walk = d => { let e; try { e = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const x of e) { const p = path.join(d, x.name); if (x.isDirectory()) walk(p); else { try { total += fs.statSync(p).size; } catch {} } } };
+  walk(dir);
+  sizeCache.set(dir, { at: Date.now(), bytes: total });
+  return total;
+}
+
+const shortcutsById = new Map();   // gameid64 string -> shortcut
+function scanShortcuts() {
+  const cfg = steamUserCfg(); if (!cfg) return [];
+  let root; try { root = parseBinVdf(fs.readFileSync(path.join(cfg, 'shortcuts.vdf'))); } catch { return []; }
+  const list = Object.values(ci(root, 'shortcuts') || {});
+  shortcutsById.clear();
+  const games = [];
+  for (const sc of list) {
+    const appid32 = ci(sc, 'appid'), name = ci(sc, 'AppName') || ci(sc, 'appname');
+    if (appid32 == null || !name || ci(sc, 'IsHidden')) continue;
+    const gameid = ((BigInt(appid32 >>> 0) << 32n) | 0x02000000n).toString();
+    const startDir = String(ci(sc, 'StartDir') || '').replace(/^"|"$/g, '');
+    const info = { gameid, appid32: appid32 >>> 0, name, startDir };
+    shortcutsById.set(gameid, info);
+    games.push({ appid: gameid, name, lastPlayed: Number(ci(sc, 'LastPlayTime') || 0), sizeOnDisk: startDir ? dirSize(startDir) : 0,
+                 stateFlags: 4, bytesToDownload: 0, bytesDownloaded: 0, nonSteam: true, shortcutId: appid32 >>> 0 });
+  }
+  return games;
+}
+
+// Artwork for non-Steam games: the user's own Steam grid art first, then the
+// matching Steam store listing (looked up by name, downloaded once, cached).
+const ART_DIR = path.join(__dirname, 'art-cache');
+const STORE_CACHE = path.join(__dirname, 'store-art.json');
+let storeCache = (() => { try { return JSON.parse(fs.readFileSync(STORE_CACHE, 'utf8')); } catch { return {}; } })();
+const norm = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '');
+async function storeLookup(name) {
+  if (storeCache[name] !== undefined) return storeCache[name];
+  const H = { 'User-Agent': 'Mozilla/5.0' };
+  let hit = null;
+  try {
+    const s1 = await (await fetch('https://store.steampowered.com/api/storesearch/?cc=US&l=en&term=' + encodeURIComponent(name), { headers: H })).json();
+    const items = s1.items || [];
+    const pick = items.find(x => norm(x.name) === norm(name)) || items.find(x => norm(x.name).includes(norm(name)) || norm(name).includes(norm(x.name)));
+    if (pick) {
+      const d = (await (await fetch('https://store.steampowered.com/api/appdetails?appids=' + pick.id, { headers: H })).json())[pick.id]?.data;
+      if (d) hit = { storeAppId: pick.id, header: d.header_image || null, hero: d.background_raw || d.background || null };
+    }
+  } catch { return null; }   // network trouble: don't cache, try again later
+  storeCache[name] = hit;
+  try { fs.writeFileSync(STORE_CACHE, JSON.stringify(storeCache, null, 2)); } catch {}
+  return hit;
+}
+async function shortcutArt(gameid, kind) {
+  const sc = shortcutsById.get(gameid); if (!sc) return null;
+  const cfg = steamUserCfg();
+  if (cfg) {
+    const b = sc.appid32, grid = path.join(cfg, 'grid');
+    const names = { header: [b + '.png', b + '.jpg'], capsule: [b + 'p.png', b + 'p.jpg', b + '.png', b + '.jpg'],
+                    hero: [b + '_hero.png', b + '_hero.jpg'], logo: [b + '_logo.png'] }[kind] || [];
+    for (const n of names) { const p = path.join(grid, n); if (fs.existsSync(p)) return p; }
+  }
+  if (kind === 'logo') return null;
+  const want = kind === 'hero' ? 'hero' : 'header';
+  const file = path.join(ART_DIR, gameid + '_' + want + '.jpg');
+  if (fs.existsSync(file)) return file;
+  const info = await storeLookup(sc.name);
+  const url = info && (info[want] || info.header);
+  if (!url) return null;
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!r.ok) return null;
+    fs.mkdirSync(ART_DIR, { recursive: true });
+    fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+    return file;
+  } catch { return null; }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://' + req.headers.host);
 
@@ -240,7 +357,7 @@ const server = http.createServer(async (req, res) => {
 
   const artMatch = url.pathname.match(/^\/art\/(\d+)\/(header|capsule|hero|logo)$/);
   if (artMatch) {
-    const file = findArt(artMatch[1], artMatch[2]);
+    const file = findArt(artMatch[1], artMatch[2]) || await shortcutArt(artMatch[1], artMatch[2]);
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (!file) { res.statusCode = 404; res.end(); return; }
     res.setHeader('Content-Type', file.endsWith('.png') ? 'image/png' : 'image/jpeg');
@@ -292,7 +409,8 @@ const server = http.createServer(async (req, res) => {
         lastPlayedRel: relativeTime(g.lastPlayed),
         size: g.sizeOnDisk,
         sizeHuman: humanSize(g.sizeOnDisk),
-        playtimeMin: pt.get(g.appid) || 0,
+        playtimeMin: pt.get(g.appid) || (g.shortcutId ? pt.get(String(g.shortcutId)) : 0) || 0,
+        nonSteam: !!g.nonSteam,
         updating: (g.stateFlags & 4) === 0 || (g.bytesToDownload > 0 && g.bytesDownloaded < g.bytesToDownload),
         progress: g.bytesToDownload > 0 ? Math.round((g.bytesDownloaded / g.bytesToDownload) * 100) : null,
       }));

@@ -24,24 +24,24 @@ layout:
     columns: 1
     header: false
     useEqualHeights: false
-  Media:
-    style: row
-    columns: 2
-    header: false
-    useEqualHeights: true
   Gaming:
     style: row
     columns: 1
     header: false
     useEqualHeights: false
+  Media:
+    style: row
+    columns: 2
+    header: false
+    useEqualHeights: true
   Automation:
     style: row
-    columns: 4
+    columns: 2
     header: false
     useEqualHeights: true
   Tools:
     style: row
-    columns: 4
+    columns: 1
     header: false
     useEqualHeights: true
 

@@ -717,7 +717,12 @@
     isolate(root);
     root.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.target.closest('.nd-sys-tile')) window.open(HUB, '_blank');
+      const t = e.target.closest('.nd-sys-tile'); if (!t) return;
+      // The Unraid logo on the NAS tile opens the Unraid web UI.
+      if (t.dataset.sys === 'NAS' && e.target.closest('.nd-sys-head img')) return window.open('http://192.168.0.190/Main', '_blank');
+      // NAS / JARVIS: detail panel (module 12). PC: open Beszel.
+      if (t.dataset.sys === 'NAS' || t.dataset.sys === 'JARVIS') document.dispatchEvent(new CustomEvent('nd-sys-detail', { detail: t.dataset.sys }));
+      else window.open(HUB, '_blank');
     });
 
     // Sits at the top of Homepage's information-widgets row, above search/weather.
@@ -783,7 +788,8 @@
           <span class="nd-sys-gpu-bar"><i style="width:${Math.max(2, g.util || 0)}%;background:${hue}"></i></span>
           <span class="nd-sys-gpu-v">${g.util ?? '–'}%${g.temp != null ? ' · ' + g.temp + '°' : ''}</span>
         </div>`).join('');
-      return `<div class="nd-sys-tile" title="Open Beszel">
+      const tip = s.name === 'PC' ? 'Open Beszel' : 'Show details';
+      return `<div class="nd-sys-tile" data-sys="${esc(s.name)}" title="${tip}">
         <div class="nd-sys-head">
           ${icon(s.name)}<div><b>${esc(s.name)}</b><small>${esc(s.subtitle || '')}</small></div>
           <i class="nd-sys-dot ${s.status === 'up' ? '' : 'down'}"></i>
@@ -1123,6 +1129,685 @@
           <span class="nd-st-row-play">&#9654;</span>
         </button>`;
       }).join('') || '<div class="nd-st-msg">No games match.</div>';
+    }
+  })();
+
+  // ═══ 6. Plex: who's watching (Active Streams block) ═══════════════════════
+  // Hover the "Active Streams" block for a quick peek; click to pin it open.
+  (() => {
+    const st = { d: null, error: '', open: false, pinned: false, hoverTimer: null };
+    const panel = document.createElement('div');
+    panel.className = 'nd-px-panel';
+    isolate(panel);
+    panel.addEventListener('click', e => e.stopPropagation());
+    panel.addEventListener('mouseenter', () => clearTimeout(st.hoverTimer));
+    panel.addEventListener('mouseleave', () => { if (!st.pinned) scheduleClose(); });
+
+    let card = null, block = null;
+    injectors.push(() => {
+      const c = document.querySelector('li.service[data-name="Plex"] .service-card');
+      if (!c) return;
+      const b = [...c.querySelectorAll('.service-block')].find(x => /stream/i.test(x.textContent));
+      if (b && b !== block) {
+        block = b;
+        b.classList.add('nd-px-block');
+        b.title = 'Who\u2019s watching';
+        b.addEventListener('mouseenter', () => { clearTimeout(st.hoverTimer); if (!st.open) setOpen(true, false); });
+        b.addEventListener('mouseleave', () => { if (!st.pinned) scheduleClose(); });
+        b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); if (st.pinned) setOpen(false); else setOpen(true, true); });
+        b.addEventListener('pointerdown', e => e.stopPropagation());
+      }
+      card = c;
+      if (st.open && !c.contains(panel)) c.appendChild(panel);
+      if (block) block.classList.toggle('nd-px-live', !!st.d?.streams?.some(s => s.state === 'playing'));
+    });
+
+    document.addEventListener('pointerdown', () => { if (st.open) setOpen(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) setOpen(false); });
+
+    function scheduleClose() { clearTimeout(st.hoverTimer); st.hoverTimer = setTimeout(() => setOpen(false), 250); }
+
+    function setOpen(v, pin) {
+      st.open = v; st.pinned = v && !!pin;
+      card?.classList.toggle('nd-px-open', v);
+      if (v && card && !card.contains(panel)) card.appendChild(panel);
+      if (!v) panel.remove();
+      if (v) { render(); poll(); }
+    }
+
+    async function poll() {
+      if (document.hidden) return;
+      try { st.d = await api('/plex/sessions'); st.error = ''; }
+      catch (e) { st.error = e.status === 503 ? 'Plex not configured on media-bridge' : 'Plex unreachable'; }
+      if (block) block.classList.toggle('nd-px-live', !!st.d?.streams?.some(s => s.state === 'playing'));
+      if (st.open) render();
+    }
+    // Fast while open, slow in the background (just for the live dot).
+    setInterval(() => { if (st.open) poll(); }, 5000);
+    setInterval(() => { if (!st.open) poll(); }, 30000);
+    poll();
+
+    const mbps = k => k >= 1000 ? (k / 1000).toFixed(1) + ' Mbps' : k + ' kbps';
+
+    function render() {
+      const d = st.d;
+      if (!d) { panel.innerHTML = `<div class="nd-px-msg">${esc(st.error || 'Loading…')}</div>`; return; }
+      if (!d.streams.length) { panel.innerHTML = '<div class="nd-px-msg">Nobody is watching right now.</div>'; return; }
+      panel.innerHTML = `
+        <div class="nd-px-head"><span>// now watching</span><span>${d.streams.length} stream${d.streams.length > 1 ? 's' : ''}${d.totalBandwidthKbps ? ' · ' + mbps(d.totalBandwidthKbps) : ''}</span></div>
+        ${d.streams.map(s => `
+          <div class="nd-px-row">
+            ${s.thumb ? `<img src="${BRIDGE + s.thumb}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span class="nd-px-noimg">&#9654;</span>'}
+            <div class="nd-px-body">
+              <div class="nd-px-top">
+                <b title="${esc(s.title)}">${esc(s.title)}</b>
+                <span class="nd-px-state ${s.state}">${s.state === 'paused' ? '&#10074;&#10074; paused' : s.state === 'buffering' ? '&#8230; buffering' : '&#9654; playing'}</span>
+              </div>
+              ${s.subtitle ? `<div class="nd-px-sub" title="${esc(s.subtitle)}">${esc(s.subtitle)}</div>` : ''}
+              <div class="nd-px-who">${esc(s.user)} · ${esc(s.player || s.platform)}${s.local ? '' : ' · <span class="nd-px-remote">remote</span>'}</div>
+              <div class="nd-px-bar"><i style="width:${s.progress ?? 0}%"></i></div>
+              <div class="nd-px-foot">
+                <span>${s.remainingMin != null ? s.remainingMin + ' min left' : ''}</span>
+                <span class="nd-px-dec ${s.decision === 'Transcode' ? 'tx' : ''}">${esc(s.decision)}${s.quality ? ' · ' + esc(s.quality) : ''}</span>
+              </div>
+            </div>
+          </div>`).join('')}`;
+    }
+  })();
+
+  // ═══ 7. SABnzbd: pause pill + queue panel ═════════════════════════════════
+  // Title-bar pill pauses/resumes. Hover the Queue block to peek at the queue,
+  // click to pin it (with timed-pause options).
+  (() => {
+    const st = { d: null, error: '', open: false, pinned: false, t: null, busy: false };
+    const pill = document.createElement('button');
+    pill.className = 'nd-ha-pill nd-sab-pill';
+    const panel = document.createElement('div');
+    panel.className = 'nd-px-panel nd-sab-panel';
+    for (const el of [pill, panel]) { isolate(el); el.addEventListener('click', onClick); }
+    panel.addEventListener('mouseenter', () => clearTimeout(st.t));
+    panel.addEventListener('mouseleave', () => { if (!st.pinned) later(); });
+
+    let card = null, block = null;
+    injectors.push(() => {
+      const c = document.querySelector('li.service[data-name="SABnzbd"] .service-card');
+      if (!c) return;
+      card = c;
+      if (!c.contains(pill)) { c.classList.add('nd-ha-host'); c.appendChild(pill); renderPill(); }
+      const b = [...c.querySelectorAll('.service-block')].find(x => /queue/i.test(x.textContent));
+      if (b && b !== block) {
+        block = b; b.classList.add('nd-px-block'); b.title = 'Download queue';
+        b.addEventListener('mouseenter', () => { clearTimeout(st.t); if (!st.open) setOpen(true, false); });
+        b.addEventListener('mouseleave', () => { if (!st.pinned) later(); });
+        b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); st.pinned ? setOpen(false) : setOpen(true, true); });
+        b.addEventListener('pointerdown', e => e.stopPropagation());
+      }
+      if (st.open && !c.contains(panel)) c.appendChild(panel);
+    });
+    document.addEventListener('pointerdown', () => { if (st.open) setOpen(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) setOpen(false); });
+    const later = () => { clearTimeout(st.t); st.t = setTimeout(() => setOpen(false), 250); };
+
+    function setOpen(v, pin) {
+      st.open = v; st.pinned = v && !!pin;
+      card?.classList.toggle('nd-px-open', v);
+      if (v && card && !card.contains(panel)) card.appendChild(panel);
+      if (!v) panel.remove();
+      if (v) { render(); poll(); }
+    }
+
+    async function poll() {
+      if (document.hidden) return;
+      try { st.d = await api('/sab/queue'); st.error = ''; } catch (e) { st.error = e.status === 503 ? 'SABnzbd not configured' : 'SABnzbd unreachable'; }
+      renderPill(); if (st.open) render();
+    }
+    setInterval(() => { if (st.open) poll(); }, 3000);
+    setInterval(() => { if (!st.open) poll(); }, 15000);
+    poll();
+
+    async function act(action, body) {
+      if (st.busy) return; st.busy = true;
+      try { await post('/sab/' + action, body); } catch { st.error = 'Command failed'; }
+      finally { st.busy = false; setTimeout(poll, 400); }
+    }
+
+    function onClick(e) {
+      e.stopPropagation();
+      const el = e.target.closest('[data-act]'); if (!el) return;
+      e.preventDefault();
+      const a = el.dataset.act;
+      if (a === 'toggle') return st.d?.paused ? act('resume') : act('pause');
+      if (a === 'pause') return act('pause', { minutes: +el.dataset.min || 0 });
+      if (a === 'resume') return act('resume');
+    }
+
+    function renderPill() {
+      const p = st.d?.paused;
+      pill.dataset.act = 'toggle';
+      pill.classList.toggle('on', !!p);
+      pill.title = p ? 'Resume downloads' : 'Pause downloads';
+      pill.innerHTML = p ? '&#9654; resume' : '&#10074;&#10074; pause';
+    }
+
+    function render() {
+      const d = st.d;
+      if (!d) { panel.innerHTML = `<div class="nd-px-msg">${esc(st.error || 'Loading…')}</div>`; return; }
+      const head = `<div class="nd-px-head"><span>// download queue${d.paused ? ' · <b class="nd-sab-paused">paused</b>' : ''}</span>
+        <span>${d.total} item${d.total === 1 ? '' : 's'}${d.kbpersec ? ' · ' + (d.kbpersec >= 1024 ? (d.kbpersec / 1024).toFixed(1) + ' MB/s' : Math.round(d.kbpersec) + ' KB/s') : ''}${d.mbleft ? ' · ' + (d.mbleft >= 1024 ? (d.mbleft / 1024).toFixed(1) + ' GB' : Math.round(d.mbleft) + ' MB') + ' left' : ''}</span></div>`;
+      const ctrls = `<div class="nd-sab-ctrls">${d.paused
+        ? '<button data-act="resume" class="primary">&#9654; resume</button>'
+        : '<span>pause for</span><button data-act="pause" data-min="30">30m</button><button data-act="pause" data-min="60">1h</button><button data-act="pause" data-min="180">3h</button><button data-act="pause" data-min="0">until resumed</button>'}</div>`;
+      const items = d.items.length ? d.items.map(x => `
+        <div class="nd-sab-row">
+          <div class="nd-px-top"><b title="${esc(x.name)}">${esc(x.name)}</b><span class="nd-px-state">${esc(x.status === 'Downloading' ? x.pct + '%' : x.status.toLowerCase())}</span></div>
+          <div class="nd-px-bar"><i style="width:${x.pct}%"></i></div>
+          <div class="nd-px-foot"><span>${esc(x.cat && x.cat !== '*' ? x.cat : '')}${x.mb ? ' · ' + (x.mb >= 1024 ? (x.mb / 1024).toFixed(1) + ' GB' : Math.round(x.mb) + ' MB') : ''}</span><span>${esc(x.timeleft || '')}</span></div>
+        </div>`).join('') : '<div class="nd-px-msg">Queue is empty.</div>';
+      panel.innerHTML = head + ctrls + items + (st.error ? `<div class="nd-px-msg" style="color:#f87171">${esc(st.error)}</div>` : '');
+    }
+  })();
+
+  // ═══ 8. Seerr: title-bar search (and no Pending block) ═════════════════════
+  // Type a title, press Enter: Seerr opens in the browser with that search.
+  (() => {
+    const SEERR = 'http://192.168.0.190:5055';
+    const box = document.createElement('form');
+    box.className = 'nd-seerr-search';
+    box.innerHTML = '<input type="search" placeholder="search seerr…" aria-label="Search Seerr" spellcheck="false"><button type="submit" aria-label="Search">&#8981;</button>';
+    isolate(box);
+    box.addEventListener('click', e => e.stopPropagation());
+    box.addEventListener('keydown', e => e.stopPropagation());
+    box.addEventListener('submit', e => {
+      e.preventDefault(); e.stopPropagation();
+      const input = box.querySelector('input'), q = input.value.trim();
+      if (!q) return input.focus();
+      window.open(SEERR + '/search?query=' + encodeURIComponent(q), '_blank');
+      input.value = ''; input.blur();
+    });
+    injectors.push(() => {
+      const c = document.querySelector('li.service[data-name="Seerr"] .service-card');
+      if (!c) return;
+      if (!c.contains(box)) { c.classList.add('nd-ha-host'); c.appendChild(box); }
+      // Seerr is just a title bar with the search box: hide its stat row entirely
+      const sc = c.querySelector('.service-container'); if (sc) sc.style.display = 'none';
+    });
+  })();
+
+  // ═══ 9. Security: Ring camera buttons ═════════════════════════════════════
+  // One button per camera (status dot: green online / red offline; pulses on
+  // motion). Click → live window for that camera. Title pill → all cameras.
+  // In NasDash these open as their own draggable windows (see main.js).
+  (() => {
+    const st = { cams: null, error: '' };
+    const root = document.createElement('div');
+    root.className = 'nd-sec';
+    const pill = document.createElement('button');
+    pill.className = 'nd-ha-pill nd-sec-all';
+    pill.title = 'All cameras in one window';
+    pill.innerHTML = '&#9638; all';
+    for (const el of [root, pill]) { isolate(el); el.addEventListener('click', onClick); }
+    pill.dataset.act = 'all';
+
+    const CAM_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" fill="currentColor"/><path d="M16 10.5 22 7v10l-6-3.5z" fill="currentColor"/></svg>';
+
+    let card = null;
+    injectors.push(() => {
+      const c = mount('Security', root, 'nd-ha-host');
+      if (!c) return;
+      if (!c.contains(pill)) c.appendChild(pill);
+      if (c !== card) { card = c; render(); }
+    });
+
+    async function poll() {
+      if (document.hidden) return;
+      try { st.cams = (await api('/ring/cameras')).cameras; st.error = ''; }
+      catch (e) { st.error = e.status === 503 ? 'Not configured' : 'Unreachable'; }
+      render();
+    }
+    setInterval(poll, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    poll();
+
+    function onClick(e) {
+      e.stopPropagation();
+      const el = e.target.closest('[data-act]'); if (!el) return;
+      e.preventDefault();
+      if (el.dataset.act === 'all') return window.open(BRIDGE + '/cams', '_blank');
+      if (el.dataset.act === 'cam') return window.open(BRIDGE + '/cams?src=' + encodeURIComponent(el.dataset.id), '_blank');
+    }
+
+    function render() {
+      if (!card) return;
+      if (!st.cams) { root.innerHTML = `<div class="nd-sec-msg">${esc(st.error || 'Loading cameras…')}</div>`; return; }
+      root.innerHTML = st.cams.map(c => `
+        <button class="nd-sec-cam ${c.online ? '' : 'off'} ${c.motion ? 'motion' : ''}" data-act="cam" data-id="${esc(c.id)}"
+                title="${esc(c.name)} — ${c.online ? (c.motion ? 'motion now' : 'online') : 'offline'}">
+          ${CAM_SVG}<span>${esc(c.name)}</span><i class="nd-sec-dot"></i>
+        </button>`).join('');
+    }
+  })();
+
+
+  // ═══ 10. Services: terminal-style table (arr stack + tools) ═══════════════
+  // service · status · wanted · missing · queued · library. Apps without those
+  // numbers show a one-line summary instead. Click a row to open the app.
+  (() => {
+    const st = { list: null, error: '' };
+    const root = document.createElement('div');
+    root.className = 'nd-svc';
+    isolate(root);
+    root.addEventListener('click', e => {
+      e.stopPropagation();
+      const el = e.target.closest('[data-url]'); if (!el) return;
+      e.preventDefault(); window.open(el.dataset.url, '_blank');
+    });
+    let card = null;
+    injectors.push(() => { const c = mount('Services', root, 'nd-host'); if (c && c !== card) { card = c; render(); } });
+    async function poll() {
+      if (document.hidden) return;
+      try { st.list = (await api('/services/status')).services; st.error = ''; } catch { st.error = 'status unavailable'; }
+      render();
+    }
+    setInterval(poll, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    poll();
+
+    const n = v => v == null ? '<span class="dim">-</span>' : Number(v).toLocaleString();
+    const warn = v => v ? `<span class="warn">${n(v)}</span>` : n(v);
+    const blue = v => v ? `<span class="blue">${n(v)}</span>` : n(v);
+
+    function cells(s) {
+      const x = s.stats;
+      if (!s.online) return '<td colspan="4" class="dim">not responding</td>';
+      if (s.id === 'radarr' && x) return `<td>${n(x.wanted)}</td><td>${warn(x.missing)}</td><td>${blue(x.queued)}</td><td>${n(x.library)}</td>`;
+      if (s.id === 'sonarr' && x) return `<td>${n(x.wanted)}</td><td><span class="dim">-</span></td><td>${blue(x.queued)}</td><td>${n(x.library)}</td>`;
+      if (s.id === 'bazarr' && x) return `<td colspan="4">${warn(x.subsEpisodes)} eps · ${warn(x.subsMovies)} movies need subs</td>`;
+      if (s.id === 'prowlarr' && x) return `<td colspan="4">${n(x.indexers)} indexers · ${x.failing ? `<span class="bad">${x.failing} failing</span>` : '0 failing'}</td>`;
+      if (s.id === 'hunterr') return `<td colspan="4">torznab proxy · ${s.ms ?? '?'} ms</td>`;
+      return '<td colspan="4" class="dim">-</td>';
+    }
+
+    function render() {
+      if (!card) return;
+      if (!st.list) { root.innerHTML = `<div class="nd-sec-msg">${esc(st.error || 'checking services…')}</div>`; return; }
+      root.innerHTML = `<table class="nd-svc-t">
+        <thead><tr><th>service</th><th>status</th><th>wanted</th><th>missing</th><th>queued</th><th>library</th></tr></thead>
+        <tbody>${st.list.map(s => `
+          <tr data-url="${esc(s.url)}" title="Open ${esc(s.name)}">
+            <td class="name">${esc(s.id)}</td>
+            <td class="${s.online ? 'up' : 'down'}">${s.online ? 'up' : 'down'}</td>
+            ${cells(s)}
+          </tr>`).join('')}</tbody></table>`;
+    }
+  })();
+
+  // ═══ 11. Status badges on cards Homepage doesn't monitor ══════════════════
+  // Same icon-corner dot as the monitored cards: green up · amber partial · red down.
+  (() => {
+    const st = { health: {}, services: null, cams: null };
+    async function poll() {
+      if (document.hidden) return;
+      try { const d = await api('/services/status'); st.health = d.health || {}; st.services = d.services; } catch { st.health = null; }
+      try { st.cams = (await api('/ring/cameras')).cameras; } catch { st.cams = null; }
+      apply();
+    }
+    setInterval(poll, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    poll();
+    injectors.push(apply);
+
+    function level(card) {
+      const h = st.health;
+      if (card === 'Speed') return h ? (h.speedtest ? 'up' : 'down') : null;
+      if (card === 'Home') return h ? (h.homeassistant ? 'up' : 'down') : null;
+      if (card === 'JARVIS') return h ? (h.openwebui ? 'up' : 'down') : null;
+      if (card === 'Services' && st.services) { const up = st.services.filter(s => s.online).length; return up === st.services.length ? 'up' : up ? 'warn' : 'down'; }
+      if (card === 'Security' && st.cams) { const up = st.cams.filter(c => c.online).length; return up === st.cams.length ? 'up' : up ? 'warn' : 'down'; }
+      return null;
+    }
+    const LABEL = { up: 'online', warn: 'partly offline', down: 'offline' };
+    function apply() {
+      // Services and Security show per-app / per-camera status, so no card-level dot.
+      for (const name of ['Speed', 'Home', 'JARVIS']) {
+        const title = document.querySelector(`li.service[data-name="${name}"] .service-title`);
+        if (!title) continue;
+        let b = title.querySelector(':scope > .nd-badge');
+        const lv = level(name);
+        if (!lv) { b?.remove(); continue; }
+        if (!b) { b = document.createElement('span'); title.appendChild(b); }
+        b.className = 'nd-badge ' + lv;
+        b.title = LABEL[lv];
+      }
+    }
+  })();
+
+  // ═══ 12. System detail panels (NAS / JARVIS tiles) ════════════════════════
+  // Click the NAS or JARVIS tile: a terminal-style panel drops over the page.
+  // Refreshes every 5 s while open; ✕, Esc or clicking outside closes it.
+  (() => {
+    const HUB = 'http://192.168.0.190:8093';
+    const st = { name: null, d: null, error: '' };
+    const panel = document.createElement('div');
+    panel.className = 'nd-sd';
+    isolate(panel);
+    panel.addEventListener('click', e => {
+      e.stopPropagation();
+      const a = e.target.closest('[data-act]')?.dataset.act;
+      if (a === 'close') close();
+      if (a === 'beszel') window.open(HUB, '_blank');
+    });
+    document.addEventListener('nd-sys-detail', e => { st.name === e.detail ? close() : open(e.detail); });
+    document.addEventListener('pointerdown', () => { if (st.name) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.name) close(); });
+
+    let timer = null;
+    function open(name) {
+      st.name = name; st.d = null; st.error = '';
+      const strip = document.querySelector('.nd-sys'); if (!strip) return;
+      strip.classList.add('nd-sd-open');
+      strip.appendChild(panel);
+      document.querySelectorAll('.nd-sys-tile').forEach(t => t.classList.toggle('sel', t.dataset.sys === name));
+      render(); poll();
+      clearInterval(timer); timer = setInterval(poll, 5000);
+    }
+    function close() {
+      st.name = null; clearInterval(timer); panel.remove();
+      document.querySelector('.nd-sys')?.classList.remove('nd-sd-open');
+      document.querySelectorAll('.nd-sys-tile.sel').forEach(t => t.classList.remove('sel'));
+    }
+    async function poll() {
+      const name = st.name; if (!name) return;
+      try { const d = await api('/system/detail?name=' + encodeURIComponent(name)); if (st.name === name) { st.d = d; st.error = ''; } }
+      catch { st.error = 'details unavailable'; }
+      if (st.name === name) render();
+    }
+
+    // ── formatting ──
+    const up = s => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
+    const rate = b => b == null ? '-' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB/s' : b >= 1024 ? Math.round(b / 1024) + ' KB/s' : b + ' B/s';
+    const tb = kb => kb >= 1e9 ? (kb / 1e9).toFixed(2) + ' TB' : Math.round(kb / 1e6) + ' GB';
+    const mem = mb => mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB';
+    const date = t => new Date(t * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const dur = s => { const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h}h ${m}m` : `${m}m`; };
+    const bar = pct => `<span class="nd-sd-bar"><i style="width:${Math.max(0, Math.min(100, pct))}%" class="${pct >= 90 ? 'bad' : pct >= 80 ? 'warn' : ''}"></i></span>`;
+    const tempClass = c => c >= 55 ? 'bad' : c >= 45 ? 'warn' : '';
+    // Friendly sensor names; one line per physical device.
+    const SENSOR = [[/k10temp_tctl|coretemp_package_id_\d+|cpu_package/i, 'cpu'], [/k10temp_tccd(\d+)/i, 'cpu ccd$1'], [/coretemp_core_(\d+)/i, 'core $1'],
+                    [/cputin/i, 'cpu socket'], [/systin/i, 'board'], [/pch/i, 'chipset'], [/nvme_composite|nvme_sensor_1/i, 'nvme'], [/acpi|thermalzone/i, 'acpi']];
+    const sensorName = n => { for (const [re, lbl] of SENSOR) { const m = n.match(re); if (m) return lbl.replace('$1', m[1] ?? ''); } return n.replace(/^nct\d+_/, '').replace(/_/g, ' '); };
+    const dedupeTemps = list => { const seen = new Set(); return list.filter(t => { if (/nvme_sensor_[2-9]/i.test(t.name)) return false; const k = sensorName(t.name); if (seen.has(k)) return false; seen.add(k); return true; }); };
+
+    function sysBlock(d) {
+      // auxtin channels on this board's sensor chip report garbage (70–95 °C): skip them
+      const temps = dedupeTemps((d.temps || []).filter(t => !/auxtin/i.test(t.name) && !/^GeForce|^Tesla/i.test(t.name))).slice(0, 5);
+      return `
+        <div class="nd-sd-sec">// system</div>
+        <div class="nd-sd-kv"><span>cpu</span><b>${d.cpu ?? '-'}%</b>${d.load ? `<em>load ${d.load.map(x => (+x).toFixed(2)).join(' ')}</em>` : ''}</div>
+        <div class="nd-sd-kv"><span>memory</span><b>${d.mem.usedGB} / ${d.mem.totalGB} GB</b>${bar(d.mem.pct)}</div>
+        ${d.swap ? `<div class="nd-sd-kv"><span>swap</span><b class="${d.swap.usedGB / d.swap.totalGB > .5 ? 'warn' : ''}">${d.swap.usedGB} / ${d.swap.totalGB} GB</b></div>` : ''}
+        ${d.name !== 'NAS' ? `<div class="nd-sd-kv"><span>disk</span><b>${d.disk.usedGB} / ${d.disk.totalGB} GB</b>${bar(d.disk.pct)}</div>` : ''}
+        ${d.net ? `<div class="nd-sd-kv"><span>network</span><b>&#8595; ${rate(d.net.recvBps)} &#8593; ${rate(d.net.sentBps)}</b></div>` : ''}
+        ${d.diskIO ? `<div class="nd-sd-kv"><span>disk i/o</span><b>r ${rate(d.diskIO.readBps)} · w ${rate(d.diskIO.writeBps)}</b></div>` : ''}
+        ${temps.length ? `<div class="nd-sd-kv"><span>temps</span><b>${temps.map(t => `<i class="${tempClass(t.c)}">${esc(sensorName(t.name))} ${t.c}&deg;</i>`).join(' · ')}</b></div>` : ''}
+        ${d.fans?.length ? `<div class="nd-sd-kv"><span>fans</span><b>${d.fans.map(f => `${esc(f.name)} ${f.rpm}`).join(' · ')} rpm</b></div>` : ''}`;
+    }
+    function gpuBlock(d) {
+      if (!d.gpus?.length) return '';
+      return `<div class="nd-sd-sec">// gpu${d.gpus.length > 1 ? 's' : ''}</div>
+        <table class="nd-sd-t"><thead><tr><th>gpu</th><th>load</th><th>vram</th><th>power</th><th>temp</th></tr></thead><tbody>
+        ${d.gpus.map(g => `<tr><td>${esc(g.name.toLowerCase())}</td><td>${g.util ?? 0}%</td>
+          <td>${mem(g.vramUsedMB)} / ${mem(g.vramTotalMB)} ${bar(g.vramTotalMB ? g.vramUsedMB / g.vramTotalMB * 100 : 0)}</td>
+          <td>${g.power ?? '-'} W</td><td class="${tempClass(g.temp)}">${g.temp ?? '-'}&deg;</td></tr>`).join('')}</tbody></table>`;
+    }
+    function containerBlock(d) {
+      const c = d.containers; if (!c) return '';
+      return `<div class="nd-sd-sec">// containers · ${c.running} running · top memory</div>
+        <div class="nd-sd-ct">${c.top.map(x => `<span><b>${esc(x.name)}</b> ${mem(x.memMB)}${x.cpu >= 1 ? ` · ${x.cpu}%` : ''}</span>`).join('')}</div>`;
+    }
+    function nasBlock(d) {
+      const u = d.unraid;
+      if (!u) return '<div class="nd-sd-sec">// array</div><div class="nd-sd-msg">array status unavailable</div>';
+      const data = u.disks.filter(x => x.type === 'Data'), par = u.disks.filter(x => x.type === 'Parity');
+      const errs = u.disks.reduce((a, x) => a + x.errors, 0);
+      const p = u.parity;
+      const parity = p.running
+        ? `<div class="nd-sd-kv"><span>parity</span><b class="blue">${esc(/check/i.test(p.action) ? 'check' : 'sync')} running · ${p.pct}%</b>${bar(p.pct)}<em>${p.speedMBs} MB/s · ${p.etaSec ? dur(p.etaSec) + ' left' : ''}</em></div>`
+        : `<div class="nd-sd-kv"><span>parity</span><b class="${p.lastErrors ? 'bad' : ''}">${p.lastEnd ? `last check ${date(p.lastEnd)} · ${p.lastStart && p.lastEnd > p.lastStart ? dur(p.lastEnd - p.lastStart) + ' · ' : ''}${p.lastErrors} errors` : 'no check on record'}</b></div>`;
+      return `
+        <div class="nd-sd-sec">// array</div>
+        <div class="nd-sd-kv"><span>state</span><b class="${u.state === 'STARTED' ? 'ok' : 'bad'}">${esc(u.state.toLowerCase())}</b><em>${data.length} data · ${par.length} parity${u.disabled ? ` · <i class="bad">${u.disabled} disabled</i>` : ''}${u.missing ? ` · <i class="bad">${u.missing} missing</i>` : ''} · ${errs} disk errors</em></div>
+        ${parity}
+        <table class="nd-sd-t nd-sd-disks"><thead><tr><th>disk</th><th>temp</th><th>err</th><th>used</th></tr></thead><tbody>
+        ${u.disks.map(x => `<tr class="${x.status !== 'DISK_OK' ? 'bad' : ''}"><td>${esc(x.name)}</td>
+          <td class="${x.temp != null ? tempClass(x.temp) : 'dim'}">${x.temp != null ? x.temp + '&deg;' : (x.type === 'Flash' ? '-' : 'idle')}</td>
+          <td class="${x.errors ? 'bad' : ''}">${x.errors}</td>
+          <td>${x.sizeKB ? `${bar(x.usedKB / x.sizeKB * 100)} ${tb(x.usedKB)} / ${tb(x.sizeKB)}` : '<span class="dim">parity</span>'}</td></tr>`).join('')}
+        </tbody></table>`;
+    }
+    function jarvisBlock(d) {
+      const l = d.llm;
+      return `<div class="nd-sd-sec">// llm</div>
+        <div class="nd-sd-kv"><span>server</span><b class="${l?.ok ? 'ok' : 'bad'}">${esc(l?.server || 'llama.cpp')} · ${l?.ok ? 'ok' : 'not responding'}</b></div>
+        <div class="nd-sd-kv"><span>model</span><b>${esc(l?.model || '-')}</b></div>
+        ${gpuBlock(d)}`;
+    }
+
+    function render() {
+      const d = st.d, name = (st.name || '').toLowerCase();
+      const head = `<div class="nd-sd-head"><b>[ ${esc(name)} ]</b>
+        <span>${d ? `${d.name === 'NAS' ? 'unraid' : 'ubuntu'} · up ${up(d.uptime)}` : ''}</span>
+        <button data-act="beszel">open beszel &#8599;</button><button data-act="close" aria-label="Close">&#10005;</button></div>`;
+      if (!d) { panel.innerHTML = head + `<div class="nd-sd-msg">${esc(st.error || 'loading…')}</div>`; return; }
+      const left = d.name === 'NAS' ? nasBlock(d) : jarvisBlock(d);
+      const right = sysBlock(d) + (d.name === 'NAS' ? gpuBlock(d) : '') + containerBlock(d);
+      panel.innerHTML = head + `<div class="nd-sd-cols"><div>${left}</div><div>${right}</div></div>` + (st.error ? `<div class="nd-sd-msg bad">${esc(st.error)}</div>` : '');
+    }
+  })();
+
+  // ═══ 13. Coms: mic + listen device + Windows default guard ════════════════
+  // Talks to NasDash's own loopback API (coms.js in the NasDash app), so it
+  // only works when the dashboard is shown inside NasDash on this PC.
+  (() => {
+    const API = 'http://127.0.0.1:8889';
+    const st = { s: null, err: '', busy: false, meter: 0, muted: false };
+    const root = document.createElement('div'); root.className = 'nd-coms';
+    const pill = document.createElement('button'); pill.className = 'nd-ha-pill nd-coms-pill'; pill.dataset.act = 'mute';
+    for (const el of [root, pill]) { isolate(el); el.addEventListener('click', onClick); }
+    root.addEventListener('change', e => {
+      if (e.target.matches('select[data-act=input]')) send('/coms/input', { id: e.target.value });
+      if (e.target.matches('select[data-act=output]')) send('/coms/output', { id: e.target.value });
+    });
+    let card = null;
+    injectors.push(() => {
+      const c = mount('Coms', root, 'nd-ha-host'); if (!c) return;
+      if (!c.contains(pill)) c.appendChild(pill);
+      if (c !== card) { card = c; render(); }
+    });
+
+    const get = p => fetch(API + p, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    async function send(p, body) {
+      if (st.busy) return; st.busy = true;
+      try { const r = await fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-NasDash': '1' }, body: JSON.stringify(body) });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); st.s = j; st.err = ''; }
+      catch (e) { st.err = String(e.message || e); }
+      finally { st.busy = false; render(); }
+    }
+    async function poll() {
+      if (document.hidden) return;
+      try { st.s = await get('/coms/state'); st.err = ''; } catch { st.s = null; st.err = 'offline'; }
+      render();
+    }
+    setInterval(poll, 5000); poll();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    // live mic meter (10/s) while visible and the API is reachable
+    setInterval(async () => {
+      if (document.hidden || !st.s) return;
+      try { const m = await get('/coms/meter'); st.meter = m.level || 0; st.muted = m.muted; paintMeter(); } catch {}
+    }, 100);
+
+    function onClick(e) {
+      e.stopPropagation();
+      const el = e.target.closest('[data-act]'); if (!el) return; e.preventDefault();
+      const s = st.s; if (!s) return;
+      const a = el.dataset.act;
+      if (a === 'mute' && s.mic) return send('/coms/mic', { muted: !s.mic.muted });
+      if (a === 'gain' && s.mic) return send('/coms/mic', { gainDb: s.mic.gainDb + Number(el.dataset.d) });
+      if (a === 'out') return send('/coms/output', { id: el.dataset.id });
+      if (a === 'vol' && s.output.volume) return send('/coms/volume', { volume: s.output.volume.volume + Number(el.dataset.d) });
+      if (a === 'outmute' && s.output.volume) return send('/coms/volume', { muted: !s.output.volume.muted });
+      if (a === 'guard') return send('/coms/enforce', { on: !s.enforce });
+    }
+
+    const SEGS = 14;
+    function paintMeter() {
+      const m = root.querySelector('.nd-coms-meter'); if (!m) return;
+      // level is 0..1 from NasDash; square-root scale so normal speech fills the middle of the bar
+      const lit = st.muted ? 0 : Math.round(Math.sqrt(Math.min(1, Math.max(0, st.meter))) * SEGS);
+      [...m.children].forEach((seg, i) => { seg.className = i < lit ? (i >= SEGS - 2 ? 'hot' : i >= SEGS - 5 ? 'warm' : 'on') : ''; });
+    }
+
+    function render() {
+      if (!card) return;
+      const s = st.s;
+      if (!s) {
+        pill.style.display = 'none';
+        root.innerHTML = `<div class="nd-coms-msg">${st.err === 'offline' ? 'audio controls work inside nasdash on this pc' : 'loading…'}</div>`;
+        return;
+      }
+      pill.style.display = '';
+      const mic = s.mic;
+      pill.classList.toggle('muted', !!mic?.muted);
+      pill.innerHTML = !mic ? 'wave link off' : mic.muted ? '&#10005; muted' : '&#9679; mic live';
+      pill.title = mic ? (mic.muted ? 'Unmute mic' : 'Mute mic') : 'Wave Link is not running';
+      const o = s.output, i = s.input, v = o.volume;
+      root.innerHTML = `
+        <div class="nd-coms-row"><span class="k">mic</span>
+          <span class="nd-coms-meter">${'<i></i>'.repeat(SEGS)}</span>
+          ${mic ? `<span class="nd-coms-step"><button data-act="gain" data-d="-1" aria-label="Lower gain">&#8722;</button><b>${mic.gainDb} dB</b><button data-act="gain" data-d="1" aria-label="Raise gain">+</button></span>` : '<span class="dim">wave link offline</span>'}
+        </div>
+        <div class="nd-coms-row"><span class="k">listen</span>
+          <select data-act="output" title="Windows default output">${o.choices.map(c => `<option value="${esc(c.id)}" ${o.current?.id === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select><b class="${o.ok ? 'ok' : 'warn'}">${o.ok ? '&#10003;' : '&#9888;'}</b>
+          ${v ? `<span class="nd-coms-step"><button data-act="vol" data-d="-5" aria-label="Volume down">&#8722;</button><b class="${v.muted ? 'dim' : ''}" data-act="outmute" title="Click to ${v.muted ? 'unmute' : 'mute'}">${v.muted ? 'muted' : v.volume + '%'}</b><button data-act="vol" data-d="5" aria-label="Volume up">+</button></span>` : ''}
+        </div>
+        <div class="nd-coms-row"><span class="k">input</span>
+          <span><select data-act="input" title="Windows default microphone">${i.choices.map(c => `<option value="${esc(c.id)}" ${i.current?.id === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select><b class="${i.ok ? 'ok' : 'warn'}">${i.ok ? '&#10003;' : '&#9888;'}</b></span>
+          <button data-act="guard" class="nd-coms-guard ${s.enforce ? 'on' : ''}" title="Guard: ${s.enforce ? 'on — Windows is kept on these devices' : 'off'}">guard ${s.enforce ? 'on' : 'off'}</button>
+        </div>
+        ${st.err ? `<div class="nd-coms-msg bad">${esc(st.err)}</div>` : ''}`;
+      paintMeter();
+    }
+  })();
+
+  // ═══ 14. JARVIS quick chat ════════════════════════════════════════════════
+  // "> ask jarvis…" prompt in the card; the conversation opens in a panel ABOVE
+  // the card (it sits at the bottom of the page). Replies stream in. Nothing is
+  // saved: the conversation only lives in this page until "new" or a reload.
+  (() => {
+    const st = { msgs: [], open: false, streaming: false, ctrl: null, model: null, ok: null };
+    const root = document.createElement('div'); root.className = 'nd-jv';
+    root.innerHTML = `<form class="nd-jv-form" autocomplete="off">
+        <span class="nd-jv-gt">&gt;</span><input type="text" placeholder="ask jarvis…" aria-label="Ask JARVIS" spellcheck="true">
+        <button type="submit" class="nd-jv-send" aria-label="Send">&#9166;</button>
+        <button type="button" data-act="new" class="nd-jv-new" title="Start a new chat">new</button>
+      </form>`;
+    const panel = document.createElement('div'); panel.className = 'nd-jv-panel';
+    for (const el of [root, panel]) { isolate(el); el.addEventListener('pointerdown', e => e.stopPropagation()); }
+    const form = root.querySelector('form'), input = root.querySelector('input'), sendBtn = root.querySelector('.nd-jv-send');
+    ['keydown', 'keyup', 'keypress'].forEach(t => input.addEventListener(t, e => e.stopPropagation()));   // keep Homepage's search hotkeys out
+    input.addEventListener('keydown', e => { if (e.key === 'Escape') { setOpen(false); input.blur(); } });
+    input.addEventListener('focus', () => { if (st.msgs.length) setOpen(true); });
+    form.addEventListener('submit', e => { e.preventDefault(); e.stopPropagation(); st.streaming ? stop() : ask(input.value); });
+    root.addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('[data-act=new]')) { stop(); st.msgs = []; setOpen(false); input.value = ''; input.focus(); } });
+    panel.addEventListener('click', e => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-act]'); if (!b) return;
+      if (b.dataset.act === 'close') setOpen(false);
+      if (b.dataset.act === 'copy') { const m = st.msgs[+b.dataset.i]; navigator.clipboard?.writeText(m.content).then(() => { b.textContent = 'copied'; setTimeout(() => (b.textContent = 'copy'), 1200); }).catch(() => {}); }
+    });
+    document.addEventListener('pointerdown', () => { if (st.open) setOpen(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) setOpen(false); });
+
+    let card = null;
+    injectors.push(() => {
+      const c = mount('JARVIS', root, 'nd-jv-host'); if (!c) return;
+      if (st.open && !c.contains(panel)) c.appendChild(panel);
+      card = c; showModel();
+    });
+
+    async function info() { try { const j = await api('/llm/info'); st.model = j.model; st.ok = j.ok; } catch { st.ok = false; } showModel(); }
+    info(); setInterval(info, 60000);
+    function showModel() {
+      const d = card?.querySelector('.service-description'); if (!d) return;
+      d.textContent = st.ok === false ? 'offline' : (st.model || 'local ai chat').toLowerCase();
+    }
+
+    function setOpen(v) {
+      st.open = v && st.msgs.length > 0;
+      card?.classList.toggle('nd-jv-open', st.open);
+      if (st.open && card && !card.contains(panel)) card.appendChild(panel);
+      if (!st.open) panel.remove(); else render();
+    }
+    function stop() { st.ctrl?.abort(); }
+
+    async function ask(q) {
+      q = q.trim(); if (!q || st.streaming) return;
+      input.value = '';
+      st.msgs.push({ role: 'user', content: q }, { role: 'assistant', content: '', pending: true });
+      st.streaming = true; sendBtn.innerHTML = '&#9632;'; sendBtn.setAttribute('aria-label', 'Stop'); sendBtn.classList.add('stop');
+      setOpen(true);
+      const reply = st.msgs[st.msgs.length - 1];
+      st.ctrl = new AbortController();
+      try {
+        const r = await fetch(BRIDGE + '/llm/chat', { method: 'POST', signal: st.ctrl.signal, headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: st.msgs.filter(m => !m.pending || m.content).map(({ role, content }) => ({ role, content })).filter(m => m.content) }) });
+        if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'JARVIS did not answer (' + r.status + ')'); }
+        const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', raf = 0;
+        for (;;) {
+          const { value, done } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop();
+          for (const l of lines) {
+            if (!l.startsWith('data: ') || l.includes('[DONE]')) continue;
+            try { const c = JSON.parse(l.slice(6)).choices?.[0]?.delta?.content; if (c) reply.content += c; } catch {}
+          }
+          if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); });
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') reply.content += reply.content ? '\n\n_(stopped)_' : '_(stopped)_';
+        else reply.error = String(e.message || e);
+      } finally {
+        reply.pending = false; st.streaming = false; st.ctrl = null;
+        reply.content = reply.content.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+        sendBtn.innerHTML = '&#9166;'; sendBtn.setAttribute('aria-label', 'Send'); sendBtn.classList.remove('stop');
+        render(); input.focus();
+      }
+    }
+
+    // Minimal, safe Markdown: escape first, then code blocks, inline code, bold, lists.
+    function md(t) {
+      const parts = String(t).split(/```/);
+      return parts.map((p, i) => {
+        if (i % 2) { const body = p.replace(/^[\w+-]*\n/, ''); return `<pre>${esc(body.replace(/\n$/, ''))}</pre>`; }
+        return esc(p)
+          .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+          .replace(/(^|\n)\s*[-*] (.*)/g, '$1<span class="li">&#8226; $2</span>')
+          .replace(/(^|\n)\s*(\d+)\. (.*)/g, '$1<span class="li">$2. $3</span>')
+          .replace(/_\(([^)]*)\)_/g, '<i>($1)</i>')
+          .replace(/\n/g, '<br>');
+      }).join('');
+    }
+
+    function render() {
+      if (!st.open) return;
+      panel.innerHTML = `
+        <div class="nd-jv-head"><span>// jarvis · ${esc((st.model || '').toLowerCase())}</span><span class="dim">not saved · esc to close</span>
+          <button data-act="close" aria-label="Close">&#10005;</button></div>
+        <div class="nd-jv-log">${st.msgs.map((m, i) => m.role === 'user'
+          ? `<div class="nd-jv-q"><span class="gt">&gt;</span>${esc(m.content)}</div>`
+          : `<div class="nd-jv-a">${m.error ? `<span class="bad">${esc(m.error)}</span>` : md(m.content) || ''}${m.pending ? '<span class="nd-jv-cursor"></span>' : ''}
+               ${!m.pending && m.content && !m.error ? `<button data-act="copy" data-i="${i}" class="nd-jv-copy">copy</button>` : ''}</div>`).join('')}</div>`;
+      const log = panel.querySelector('.nd-jv-log'); log.scrollTop = log.scrollHeight;
     }
   })();
 })();

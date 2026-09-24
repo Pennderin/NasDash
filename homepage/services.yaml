@@ -98,62 +98,20 @@
           url: http://192.168.0.190:5055
           key: <REDACTED — see docs/SECRETS.md>
 
-    - Bazarr:
-        icon: bazarr.png
-        href: http://192.168.0.190:6767
-        description: Subtitles
-        server: nas
-        container: bazarr
-        widget:
-          type: bazarr
-          url: http://192.168.0.190:6767
-          key: <REDACTED — see docs/SECRETS.md>
+    - Security:
+        icon: mdi-cctv-#6ea8ff
+        description: Ring cameras
 
-    - Radarr:
-        icon: radarr.png
-        href: http://192.168.0.190:7878
-        description: Movies
-        server: nas
-        container: radarr
-        widget:
-          type: radarr
-          url: http://192.168.0.190:7878
-          key: <REDACTED — see docs/SECRETS.md>
+    - Services:
+        icon: mdi-apps-#6ea8ff
+        description: media automation
 
-    - Sonarr:
-        icon: sonarr.png
-        href: http://192.168.0.190:8989
-        description: TV Shows
-        server: nas
-        container: sonarr
-        widget:
-          type: sonarr
-          url: http://192.168.0.190:8989
-          key: <REDACTED — see docs/SECRETS.md>
+    - Coms:
+        icon: mdi-headset-#6ea8ff
+        description: wave link
 
 - Tools:
-    - Prowlarr:
-        icon: prowlarr.png
-        href: http://192.168.0.190:9696
-        description: Indexers
-        server: nas
-        container: prowlarr
-
-    - Hunterr:
-        icon: mdi-magnify-#3b82f6
-        href: http://192.168.0.190:9878
-        description: Torznab Proxy
-        server: nas
-        container: hunterr
-
-    - Homebridge:
-        icon: homebridge.png
-        href: http://192.168.0.190:8581
-        description: HomeKit Bridge
-        server: nas
-        container: homebridge
-
-    - JARVIS (Open WebUI):
+    - JARVIS:
         icon: mdi-robot-#06b6d4
         href: http://192.168.0.26:3000
         description: Local AI Chat

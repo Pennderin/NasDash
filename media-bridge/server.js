@@ -752,6 +752,438 @@ async function steamFriends(req, res) {
   json(res, 200, sf.cache);
 }
 
+
+// ═══ Plex: who is watching what ══════════════════════════════════════════════
+// Active sessions for the Plex card's stream list, plus a poster proxy so the
+// page never sees the Plex token.
+const PLEX_URL   = (process.env.PLEX_URL || '').replace(/\/$/, '');
+const PLEX_TOKEN = process.env.PLEX_TOKEN || '';
+const px = { cache: null, at: 0 };
+
+async function plexFetch(p) {
+  const sep = p.includes('?') ? '&' : '?';
+  const r = await fetch(PLEX_URL + p + sep + 'X-Plex-Token=' + encodeURIComponent(PLEX_TOKEN), { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new UpstreamError(r.status, 'plex ' + p.split('?')[0]);
+  return r;
+}
+
+function plexDecision(m) {
+  const t = m.TranscodeSession;
+  if (!t) return 'Direct Play';
+  const v = t.videoDecision, a = t.audioDecision;
+  if (v === 'transcode' || (!v && a === 'transcode')) return 'Transcode';
+  return 'Direct Stream';
+}
+
+async function plexSessions(req, res) {
+  if (px.cache && Date.now() - px.at < 5000) return json(res, 200, px.cache);
+  const d = await (await plexFetch('/status/sessions')).json();
+  const items = d?.MediaContainer?.Metadata || [];
+  const streams = items.map(m => {
+    const pad = n => String(n ?? '').padStart(2, '0');
+    let title = m.title, subtitle = '';
+    if (m.type === 'episode') { title = m.grandparentTitle; subtitle = `S${pad(m.parentIndex)}E${pad(m.index)} · ${m.title}`; }
+    else if (m.type === 'track') { title = m.title; subtitle = [m.grandparentTitle, m.parentTitle].filter(Boolean).join(' · '); }
+    else if (m.year) subtitle = String(m.year);
+    const media = (m.Media || [])[0] || {};
+    const thumb = m.type === 'episode' ? (m.grandparentThumb || m.thumb) : (m.parentThumb && m.type === 'track' ? m.parentThumb : m.thumb);
+    return {
+      user: m.User?.title || 'Unknown',
+      type: m.type, title, subtitle,
+      progress: m.duration ? Math.min(100, Math.round((m.viewOffset || 0) / m.duration * 100)) : null,
+      remainingMin: m.duration ? Math.max(0, Math.round((m.duration - (m.viewOffset || 0)) / 60000)) : null,
+      state: m.Player?.state || 'playing',
+      player: m.Player?.title || m.Player?.product || '',
+      platform: m.Player?.platform || '',
+      local: !!m.Player?.local,
+      decision: plexDecision(m),
+      quality: media.videoResolution ? (/^\d+$/.test(media.videoResolution) ? media.videoResolution + 'p' : media.videoResolution.toUpperCase()) : (media.audioCodec || '').toUpperCase(),
+      bandwidthKbps: m.Session?.bandwidth || null,
+      thumb: thumb ? '/plex/thumb?p=' + encodeURIComponent(thumb) : null,
+    };
+  });
+  px.cache = { streams, totalBandwidthKbps: streams.reduce((a, s) => a + (s.bandwidthKbps || 0), 0) };
+  px.at = Date.now();
+  json(res, 200, px.cache);
+}
+
+// Poster proxy: only library artwork paths, resized by Plex's transcoder.
+async function plexThumb(req, res, url) {
+  const p = url.searchParams.get('p') || '';
+  if (!/^\/library\/metadata\/\d+\/(thumb|art)\/\d+$/.test(p)) return json(res, 400, { error: 'bad path' });
+  const ctrl = new AbortController();
+  const up = await plexFetch('/photo/:/transcode?width=120&height=180&minSize=1&upscale=1&url=' + encodeURIComponent(p));
+  pipeUpstream(up, res, ctrl, { 'Cache-Control': 'public, max-age=3600' });
+}
+
+
+// ═══ SABnzbd: queue list + pause/resume ═════════════════════════════════════
+const SAB_URL = (process.env.SAB_URL || '').replace(/\/$/, '');
+const SAB_KEY = process.env.SAB_KEY || '';
+
+async function sabApi(params) {
+  const q = new URLSearchParams({ ...params, apikey: SAB_KEY, output: 'json' });
+  const r = await fetch(SAB_URL + '/api?' + q);
+  if (!r.ok) throw new UpstreamError(r.status, 'sabnzbd');
+  return r.json();
+}
+
+async function sabQueue(req, res) {
+  const d = (await sabApi({ mode: 'queue', limit: '25' })).queue || {};
+  json(res, 200, {
+    paused: !!d.paused, status: d.status, speed: d.speed, kbpersec: Number(d.kbpersec) || 0,
+    timeleft: d.timeleft, mbleft: Number(d.mbleft) || 0, total: Number(d.noofslots_total ?? d.noofslots) || 0,
+    pausedUntil: d.pause_int && d.pause_int !== '0' ? d.pause_int : null,
+    items: (d.slots || []).map(x => ({
+      name: x.filename, pct: Number(x.percentage) || 0, timeleft: x.timeleft,
+      mb: Number(x.mb) || 0, mbleft: Number(x.mbleft) || 0, status: x.status, cat: x.cat,
+    })),
+  });
+}
+
+async function sabControl(req, res, action) {
+  const b = await readBody(req);
+  if (action === 'pause') {
+    const minutes = Math.max(0, Math.min(1440, Math.round(Number(b.minutes) || 0)));
+    if (minutes) await sabApi({ mode: 'config', name: 'set_pause', value: String(minutes) });
+    else await sabApi({ mode: 'pause' });
+  } else if (action === 'resume') {
+    await sabApi({ mode: 'resume' });
+  } else return json(res, 404, { error: 'not found' });
+  json(res, 200, { ok: true });
+}
+
+
+// ═══ Security: Ring cameras (via ring-mqtt → go2rtc) ═════════════════════════
+// Status comes from Home Assistant; video from go2rtc, which sits on a private
+// Docker network with no published ports — only this bridge can reach it.
+const net = require('net');
+const GO2RTC_URL = (process.env.GO2RTC_URL || 'http://go2rtc:1984').replace(/\/$/, '');
+const CAMS = [
+  { id: 'front_door',  name: 'Front Door',  entity: 'camera.front_door_snapshot',  motion: 'binary_sensor.front_door_motion' },
+  { id: 'living_room', name: 'Living Room', entity: 'camera.living_room_snapshot', motion: 'binary_sensor.living_room_motion' },
+  { id: 'garage',      name: 'Garage',      entity: 'camera.garage_snapshot',      motion: 'binary_sensor.garage_motion' },
+];
+const CAM_IDS = new Set(CAMS.map(c => c.id));
+const rc = { cache: null, at: 0 };
+
+async function ringCameras(req, res) {
+  if (rc.cache && Date.now() - rc.at < 5000) return json(res, 200, rc.cache);
+  const all = await haFetch('/api/states');
+  const st = new Map(all.map(e => [e.entity_id, e]));
+  rc.cache = { cameras: CAMS.map(c => {
+    const cam = st.get(c.entity), m = st.get(c.motion);
+    return { id: c.id, name: c.name,
+      online: !!cam && cam.state !== 'unavailable' && cam.state !== 'unknown',
+      motion: m?.state === 'on', lastMotion: m?.attributes?.lastMotionTime || null };
+  }) };
+  rc.at = Date.now();
+  json(res, 200, rc.cache);
+}
+
+function camsPage(req, res, url) {
+  const one = url.searchParams.get('src');
+  const list = one && CAM_IDS.has(one) ? CAMS.filter(c => c.id === one) : CAMS;
+  const title = list.length === 1 ? list[0].name + ' — NasDash Security' : 'NasDash Security';
+  const tiles = list.map(c => `<div class="tile" data-id="${c.id}"><div class="lbl"><i></i>${c.name}</div></div>`).join('');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="module" src="/cams/video-stream.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#c9d0da;font-family:'IBM Plex Mono',ui-monospace,Consolas,monospace;overflow:hidden}
+.grid{display:grid;height:100vh;gap:2px;background:#0b0d11;grid-template-columns:repeat(var(--cols,1),1fr);grid-auto-rows:1fr}
+.tile{position:relative;background:#000;overflow:hidden;cursor:pointer}
+.grid.focus .tile{display:none}.grid.focus .tile.on{display:block;grid-column:1/-1;grid-row:1/-1}
+video-stream{position:absolute;inset:0;display:block}
+video-stream video{width:100%!important;height:100%!important;object-fit:contain;background:#000}
+.lbl{position:absolute;left:8px;top:8px;z-index:2;font-size:12px;padding:3px 9px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14)}
+.lbl i{display:inline-block;width:7px;height:7px;background:#22c55e;margin-right:7px;vertical-align:1px}
+.hud{position:fixed;right:10px;bottom:8px;z-index:3;font-size:11px;color:#7a8494;background:rgba(0,0,0,.5);padding:2px 8px}
+</style></head><body>
+<div class="grid" id="g">${tiles}</div>
+<div class="hud" id="hud"></div>
+<script>
+const g = document.getElementById('g'), n = g.children.length;
+// go2rtc's player takes its settings as properties (not attributes), once the
+// component is defined: mode first, then src (setting src connects).
+customElements.whenDefined('video-stream').then(() => {
+  for (const t of g.querySelectorAll('.tile')) {
+    const v = document.createElement('video-stream');
+    v.mode = 'mse';
+    v.src = new URL('/cams/ws?src=' + t.dataset.id, location.href);
+    t.appendChild(v);
+  }
+});
+function layout(){ const wide = innerWidth / innerHeight > 2.1; g.style.setProperty('--cols', n === 1 ? 1 : (n === 3 && wide) ? 3 : 2); }
+addEventListener('resize', layout); layout();
+// In the grid: click a camera to focus it, click again to go back. F toggles fullscreen.
+if (n > 1) g.addEventListener('click', e => { const t = e.target.closest('.tile'); if (!t) return;
+  if (g.classList.contains('focus')) { g.classList.remove('focus'); t.classList.remove('on'); } else { g.classList.add('focus'); t.classList.add('on'); } });
+addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  if (e.key === 'Escape' && g.classList.contains('focus')) { g.classList.remove('focus'); g.querySelectorAll('.on').forEach(x => x.classList.remove('on')); } });
+const hud = document.getElementById('hud');
+setInterval(() => { hud.textContent = new Date().toLocaleTimeString() + (n > 1 ? '  ·  click a camera to focus  ·  F fullscreen' : '  ·  F fullscreen'); }, 1000);
+</script></body></html>`);
+}
+
+async function camsAsset(req, res, name) {
+  if (!/^video-(stream|rtc)\.js$/.test(name)) return json(res, 404, { error: 'not found' });
+  const r = await fetch(GO2RTC_URL + '/' + name);
+  if (!r.ok) throw new UpstreamError(r.status, 'go2rtc ' + name);
+  res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'public, max-age=3600' });
+  res.end(await r.text());
+}
+
+// WebSocket relay: /cams/ws?src=<camera> → go2rtc /api/ws?src=<camera>
+function camsUpgrade(req, socket, head) {
+  let u; try { u = new URL(req.url, 'http://x'); } catch { return socket.destroy(); }
+  const src = u.searchParams.get('src');
+  if (u.pathname !== '/cams/ws' || !CAM_IDS.has(src)) return socket.destroy();
+  const g = new URL(GO2RTC_URL);
+  const up = net.connect(Number(g.port) || 80, g.hostname, () => {
+    let hdr = `GET /api/ws?src=${encodeURIComponent(src)} HTTP/1.1\r\n`;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) if (!/^host$/i.test(req.rawHeaders[i])) hdr += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+    hdr += `Host: ${g.host}\r\n\r\n`;
+    up.write(hdr);
+    if (head && head.length) up.write(head);
+    up.pipe(socket); socket.pipe(up);
+  });
+  up.on('error', () => socket.destroy());
+  socket.on('error', () => up.destroy());
+}
+
+
+// ═══ Services card: app list with up/down status ═════════════════════════════
+// Any HTTP answer below 500 (including login redirects) counts as online.
+const SERVICES = [
+  { id: 'radarr',   name: 'Radarr',   url: 'http://192.168.0.190:7878', icon: 'radarr' },
+  { id: 'sonarr',   name: 'Sonarr',   url: 'http://192.168.0.190:8989', icon: 'sonarr' },
+  { id: 'bazarr',   name: 'Bazarr',   url: 'http://192.168.0.190:6767', icon: 'bazarr' },
+  { id: 'prowlarr', name: 'Prowlarr', url: 'http://192.168.0.190:9696', icon: 'prowlarr' },
+  { id: 'hunterr',  name: 'Hunterr',  url: 'http://192.168.0.190:9878', icon: null },
+];
+const svc = { cache: null, at: 0 };
+const ARR_KEYS = { radarr: process.env.RADARR_KEY, sonarr: process.env.SONARR_KEY, bazarr: process.env.BAZARR_KEY, prowlarr: process.env.PROWLARR_KEY };
+// Extra up/down checks used for status badges on other cards.
+const HEALTH = [
+  { id: 'openwebui', url: 'http://192.168.0.26:3000' },
+  { id: 'speedtest', url: 'http://192.168.0.190:7791/summary' },
+  { id: 'homeassistant', url: 'http://192.168.0.26:8123' },
+];
+const statsCache = new Map();   // id -> { at, ttl, data }
+
+async function getJson(url, headers) {
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(url + ' ' + r.status);
+  return r.json();
+}
+async function cached(key, ttl, fn) {
+  const c = statsCache.get(key);
+  if (c && Date.now() - c.at < ttl) return c.data;
+  try { const data = await fn(); statsCache.set(key, { at: Date.now(), data }); return data; }
+  catch { return c ? c.data : null; }
+}
+
+async function arrStats(id) {
+  const k = ARR_KEYS[id]; if (!k) return null;
+  const H = { 'X-Api-Key': k };
+  if (id === 'radarr') {
+    const lib = await cached('radarr-lib', 300000, async () => {
+      const m = await getJson('http://192.168.0.190:7878/api/v3/movie', H);
+      return { library: m.length, missing: m.filter(x => x.monitored && !x.hasFile).length, wanted: m.filter(x => x.monitored && !x.hasFile && x.isAvailable).length };
+    });
+    const q = await cached('radarr-q', 30000, async () => (await getJson('http://192.168.0.190:7878/api/v3/queue?pageSize=1', H)).totalRecords);
+    return lib && { ...lib, queued: q ?? 0 };
+  }
+  if (id === 'sonarr') {
+    const lib = await cached('sonarr-lib', 300000, async () => (await getJson('http://192.168.0.190:8989/api/v3/series', H)).length);
+    const w = await cached('sonarr-w', 60000, async () => (await getJson('http://192.168.0.190:8989/api/v3/wanted/missing?pageSize=1', H)).totalRecords);
+    const q = await cached('sonarr-q', 30000, async () => (await getJson('http://192.168.0.190:8989/api/v3/queue?pageSize=1', H)).totalRecords);
+    return { library: lib, wanted: w, queued: q ?? 0 };
+  }
+  if (id === 'bazarr') {
+    return await cached('bazarr', 120000, async () => {
+      const B = { 'X-API-KEY': k };
+      const e = await getJson('http://192.168.0.190:6767/api/episodes/wanted?length=1', B);
+      const m = await getJson('http://192.168.0.190:6767/api/movies/wanted?length=1', B);
+      return { subsEpisodes: e.total ?? 0, subsMovies: m.total ?? 0 };
+    });
+  }
+  if (id === 'prowlarr') {
+    return await cached('prowlarr', 120000, async () => {
+      const idx = await getJson('http://192.168.0.190:9696/api/v1/indexer', H);
+      const st = await getJson('http://192.168.0.190:9696/api/v1/indexerstatus', H);
+      const enabled = idx.filter(x => x.enable);
+      const failingIds = new Set(st.filter(x => x.disabledTill && new Date(x.disabledTill) > new Date()).map(x => x.indexerId));
+      return { indexers: enabled.length, failing: enabled.filter(x => failingIds.has(x.id)).length };
+    });
+  }
+  return null;
+}
+
+async function servicesStatus(req, res) {
+  if (svc.cache && Date.now() - svc.at < 15000) return json(res, 200, svc.cache);
+  const ping = async x => {
+    const t0 = Date.now();
+    try {
+      const r = await fetch(x.url, { redirect: 'manual', signal: AbortSignal.timeout(4000) });
+      return { online: r.status < 500, ms: Date.now() - t0 };
+    } catch { return { online: false, ms: null }; }
+  };
+  const [services, health] = await Promise.all([
+    Promise.all(SERVICES.map(async x => {
+      const p = await ping(x);
+      return { ...x, ...p, stats: p.online ? await arrStats(x.id).catch(() => null) : null };
+    })),
+    Promise.all(HEALTH.map(async x => ({ id: x.id, ...(await ping(x)) }))),
+  ]);
+  svc.cache = { services, health: Object.fromEntries(health.map(h => [h.id, h.online])) }; svc.at = Date.now();
+  json(res, 200, svc.cache);
+}
+
+
+// ═══ System detail panels (NAS / JARVIS tiles) ═══════════════════════════════
+// Beszel for live stats; Unraid's status files (/emhttp, read-only mount) for
+// array/parity/disks; llama.cpp health + model name for JARVIS (never /slots:
+// that can contain conversation text).
+function readIni(file) {
+  const out = {}; let sec = null;
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      const m = line.match(/^\[(.+)\]$/); if (m) { sec = m[1].replace(/"/g, ''); out[sec] = {}; continue; }
+      const kv = line.match(/^([^=]+)="?(.*?)"?$/); if (!kv) continue;
+      if (sec) out[sec][kv[1]] = kv[2]; else out[kv[1]] = kv[2];
+    }
+  } catch { return null; }
+  return out;
+}
+
+function unraidDetail() {
+  const v = readIni('/emhttp/var.ini'), d = readIni('/emhttp/disks.ini');
+  if (!v || !d) return null;
+  const num = x => Number(x) || 0;
+  const disks = Object.values(d).filter(x => x.status && x.status !== 'DISK_NP' && x.name).map(x => ({
+    name: x.name, type: x.type, status: x.status,
+    temp: x.temp === '*' || x.temp === '' ? null : num(x.temp), spunDown: x.temp === '*',
+    errors: num(x.numErrors),
+    sizeKB: num(x.fsSize) || null, usedKB: x.fsSize ? num(x.fsSize) - num(x.fsFree) : null,
+  }));
+  const running = num(v.mdResync) > 0 && num(v.mdResyncPos) > 0;
+  const kbps = num(v.mdResyncDt) ? num(v.mdResyncDb) / num(v.mdResyncDt) : 0;   // KB per second
+  return {
+    state: v.mdState, numDisks: num(v.mdNumDisks),
+    disabled: num(v.mdNumDisabled), invalid: num(v.mdNumInvalid), missing: num(v.mdNumMissing),
+    parity: {
+      running, action: v.mdResyncAction,
+      pct: running ? Math.round(num(v.mdResyncPos) / num(v.mdResyncSize) * 1000) / 10 : null,
+      speedMBs: running ? Math.round(kbps / 1024 * 10) / 10 : null,
+      etaSec: running && kbps ? Math.round((num(v.mdResyncSize) - num(v.mdResyncPos)) / kbps) : null,
+      lastStart: num(v.sbSynced) || null, lastEnd: num(v.sbSynced2) || null,
+      lastErrors: num(v.sbSyncErrs), lastExit: num(v.sbSyncExit),
+    },
+    disks,
+  };
+}
+
+async function systemDetail(req, res, url) {
+  const name = url.searchParams.get('name');
+  if (!['NAS', 'JARVIS', 'PC'].includes(name)) return json(res, 400, { error: 'unknown system' });
+  const { items = [] } = await bzGet('/api/collections/systems/records?perPage=50&fields=id,name,status,info');
+  const sys = items.find(x => x.name === name);
+  if (!sys) return json(res, 404, { error: 'system not in Beszel' });
+  const flt = encodeURIComponent(`system='${sys.id}'`);
+  const [st, ct] = await Promise.all([
+    bzGet(`/api/collections/system_stats/records?perPage=1&sort=-created&filter=${encodeURIComponent(`system='${sys.id}' && type='1m'`)}`),
+    bzGet(`/api/collections/container_stats/records?perPage=1&sort=-created&filter=${flt}`).catch(() => ({ items: [] })),
+  ]);
+  const x = st.items?.[0]?.stats || {}, info = sys.info || {};
+  const temps = Object.entries(x.t || {}).map(([k, v]) => ({ name: k, c: Math.round(v) })).filter(t => t.c > 0 && t.c < 120).sort((a, b) => b.c - a.c);
+  const gpus = Object.values(x.g || {}).map(g => ({ name: shortGpu(g.n), util: round(g.u), vramUsedMB: round(g.mu), vramTotalMB: round(g.mt), power: round(g.p, 1),
+    temp: round((x.t || {})[g.n] ?? (x.t || {})[String(g.n).replace(/\s+\d{1,2}$/, '')] ?? null) }));
+  const containers = (ct.items?.[0]?.stats || []).map(c => ({ name: c.n, cpu: round(c.c, 1), memMB: round(c.m) })).sort((a, b) => b.memMB - a.memMB);
+  const out = {
+    name, status: sys.status, uptime: info.u || 0, load: x.la || info.la || null,
+    cpu: round(x.cpu, 1),
+    mem: { usedGB: round(x.mu, 1), totalGB: round(x.m, 1), pct: round(x.mp) },
+    swap: x.s ? { usedGB: round(x.su, 1), totalGB: round(x.s, 1) } : null,
+    disk: { usedGB: round(x.du), totalGB: round(x.d), pct: round(x.dp) },
+    net: Array.isArray(x.b) ? { sentBps: x.b[0], recvBps: x.b[1] } : null,
+    diskIO: Array.isArray(x.dio) ? { readBps: x.dio[0], writeBps: x.dio[1] } : null,
+    temps: temps.slice(0, 8),
+    fans: Object.entries(x.f || {}).filter(([, v]) => v > 0).map(([k, v]) => ({ name: k.replace(/^nct\d+_/, ''), rpm: Math.round(v) })),
+    gpus,
+    containers: { running: containers.length, top: containers.slice(0, 6) },
+  };
+  if (name === 'NAS') out.unraid = unraidDetail();
+  if (name === 'JARVIS') {
+    try {
+      const h = await fetch('http://192.168.0.26:8080/health', { signal: AbortSignal.timeout(3000) });
+      const m = await fetch('http://192.168.0.26:8080/v1/models', { signal: AbortSignal.timeout(3000) }).then(r => r.json()).catch(() => null);
+      const id = m?.data?.[0]?.id || '';
+      out.llm = { ok: h.ok, server: 'llama.cpp', model: id.split('/').pop().replace(/\.gguf$/i, '') || null };
+    } catch { out.llm = { ok: false, server: 'llama.cpp', model: null }; }
+  }
+  json(res, 200, out);
+}
+
+
+// ═══ JARVIS quick chat (dashboard) → llama.cpp on JARVIS ══════════════════════
+// Relays a short conversation and streams the reply back (SSE). Nothing is
+// stored or logged: the conversation only lives in the open dashboard page.
+const LLM_URL = 'http://192.168.0.26:8080';
+const LLM_SYSTEM = [
+  'You are JARVIS, Anthony\'s personal AI assistant, answering quick questions from his desktop dashboard.',
+  'Facts about yourself (these are true; state them plainly if asked):',
+  '- You are the open-weight Qwen3.8-27B language model (made by Alibaba\'s Qwen team), running locally on Anthony\'s own',
+  '  server "JARVIS" at home via llama.cpp on his RTX 4070 Ti Super GPUs.',
+  '- You are NOT Claude, NOT ChatGPT, and have no connection to Anthropic, OpenAI or any cloud service.',
+  '  Your training data included text from other AI assistants, which is why you may feel inclined to claim',
+  '  another identity; do not.',
+  '- Nothing you process leaves his home network. This dashboard chat is not saved anywhere.',
+  '- You have no tools, no internet access and no ability to run commands, install software or change settings.',
+  '  Never offer to set things up or take actions; explain how Anthony could do it instead.',
+  '- Your knowledge stops at your training date. For fast-moving topics (software versions, new AI models, prices,',
+  '  news) say that your information may be out of date.',
+  'Style: concise and direct; a few sentences or a short list unless asked for more. Use Markdown for code.',
+].join('\n');
+
+async function llmInfo(req, res) {
+  try {
+    const [h, m] = await Promise.all([
+      fetch(LLM_URL + '/health', { signal: AbortSignal.timeout(3000) }),
+      fetch(LLM_URL + '/v1/models', { signal: AbortSignal.timeout(3000) }).then(r => r.json()).catch(() => null),
+    ]);
+    const id = m?.data?.[0]?.id || '';
+    json(res, 200, { ok: h.ok, model: id.split('/').pop().replace(/\.gguf$/i, '') || null });
+  } catch { json(res, 200, { ok: false, model: null }); }
+}
+
+async function llmChat(req, res) {
+  const b = await readBody(req);
+  // Only user/assistant turns with plain text; keep the last 12 and cap total size.
+  let msgs = (Array.isArray(b.messages) ? b.messages : [])
+    .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-12).map(m => ({ role: m.role, content: m.content.slice(0, 8000) }));
+  while (msgs.reduce((a, m) => a + m.content.length, 0) > 24000 && msgs.length > 1) msgs.shift();
+  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return json(res, 400, { error: 'no question' });
+
+  const ctrl = new AbortController();
+  req.on('close', () => ctrl.abort());          // user closed/cleared: stop generating
+  let up;
+  try {
+    up = await fetch(LLM_URL + '/v1/chat/completions', {
+      method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'system', content: LLM_SYSTEM }, ...msgs], stream: true,
+        max_tokens: 1200, temperature: 0.6, chat_template_kwargs: { enable_thinking: false } }),
+    });
+  } catch { return json(res, 502, { error: 'JARVIS is not responding' }); }
+  if (!up.ok || !up.body) return json(res, 502, { error: 'JARVIS error ' + up.status });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+  try { for await (const chunk of up.body) res.write(chunk); } catch {}
+  res.end();
+}
+
 // ─── router ─────────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   cors(req, res);
@@ -768,6 +1200,26 @@ const server = http.createServer(async (req, res) => {
     });
 
     if (p === '/systems') return await systemsHandler(req, res);
+    if (p === '/system/detail' && req.method === 'GET') return await systemDetail(req, res, url);
+    if (p === '/services/status' && req.method === 'GET') return await servicesStatus(req, res);
+    if (p === '/llm/info' && req.method === 'GET') return await llmInfo(req, res);
+    if (p === '/llm/chat' && req.method === 'POST') return await llmChat(req, res);
+    if (p === '/ring/cameras' && req.method === 'GET') {
+      if (!HA_URL || !HA_TOKEN) return json(res, 503, { error: 'Home Assistant not configured' });
+      return await ringCameras(req, res);
+    }
+    if (p === '/cams' && req.method === 'GET') return camsPage(req, res, url);
+    if (p.startsWith('/cams/') && req.method === 'GET') return await camsAsset(req, res, p.slice(6));
+    if (p.startsWith('/sab/')) {
+      if (!SAB_URL || !SAB_KEY) return json(res, 503, { error: 'SABnzbd not configured' });
+      if (req.method === 'GET' && p === '/sab/queue') return await sabQueue(req, res);
+      if (req.method === 'POST' && (p === '/sab/pause' || p === '/sab/resume')) return await sabControl(req, res, p.split('/')[2]);
+    }
+    if (p.startsWith('/plex/')) {
+      if (!PLEX_URL || !PLEX_TOKEN) return json(res, 503, { error: 'Plex not configured' });
+      if (p === '/plex/sessions') return await plexSessions(req, res);
+      if (p === '/plex/thumb') return await plexThumb(req, res, url);
+    }
     if (p === '/steam/friends' && req.method === 'GET') return await steamFriends(req, res);
 
     if (seg[0] === 'ha' && seg.length === 2) {
@@ -813,4 +1265,5 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('upgrade', camsUpgrade);
 server.listen(PORT, () => console.log(`media-bridge listening on :${PORT} (origins: ${ORIGINS.join(', ')}; spotify: ${SP_ID ? 'configured' : 'off'})`));

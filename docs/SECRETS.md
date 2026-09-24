@@ -32,6 +32,10 @@ the NAS (plus one small file on the PC), none of which are published:
 | `BESZEL_URL` | `http://192.168.0.190:8093` |
 | `BESZEL_EMAIL` / `BESZEL_PASSWORD` | Beszel hub login (below) |
 | `STEAM_API_KEY` | Steam Web API key (below) |
+| `PLEX_URL` | `http://192.168.0.190:32400` |
+| `PLEX_TOKEN` | a Plex token (same as the Plex card key in `services.yaml`) |
+| `SAB_URL` / `SAB_KEY` | `http://192.168.0.190:8090` / SABnzbd API key (Config → General) |
+| `GO2RTC_URL` | `http://go2rtc:1984` |
 
 ### Audiobookshelf: `ABS_KEY`
 Audiobookshelf → **Settings → API Keys → Add** (name it `homepage`). The same
@@ -51,6 +55,9 @@ http://192.168.0.26:8123/profile/security → **Long-lived access tokens → Cre
 (name `NasDash`). It is shown once. The bridge only uses it for the lights, fans,
 AC and alarm status listed in `media-bridge/server.js` (the `HA` allow-list).
 
+### Plex: `PLEX_TOKEN`
+Used for the Plex card's *who's watching* list (hover/click **Active Streams**). Same token as the Plex card's `key:`; see *Homepage card keys* below for how to find it.
+
 ### Steam: `STEAM_API_KEY`
 https://steamcommunity.com/dev/apikey (domain: anything, e.g. `nasdash`). Used only
 for the "friends online" count. The Steam account ID is derived from your local
@@ -62,6 +69,20 @@ On a brand-new hub, start it once with `-e USER_EMAIL=... -e USER_PASSWORD=...`
 (see `docs/NAS-REBUILD.md`) to create the account.
 
 ---
+
+## Ring cameras (Security card)
+
+- **ring-mqtt** (on JARVIS, `~/jarvis/ring-mqtt/config.json`) must have `"enable_cameras": true`
+  and a **`livestream_user` / `livestream_pass`**. Without a password its stream server
+  (port 8554 on JARVIS) would serve the cameras to anyone on the network.
+- **go2rtc** (NAS, `/mnt/user/appdata/go2rtc/go2rtc.yaml`, root-only) holds the same
+  credentials in each camera's stream URL:
+  `rtsp://<user>:<pass>@192.168.0.26:8554/<camera-id>_live`. Camera ids are in the
+  ring-mqtt log (`docker logs ring-mqtt | grep stream_Source`).
+- **media-bridge** reaches go2rtc at `GO2RTC_URL=http://go2rtc:1984` over the private
+  `nasdash` Docker network; go2rtc publishes no ports.
+- Changing the stream password: update ring-mqtt's config (restart it), then the three URLs
+  in go2rtc.yaml (`bash nas-containers.sh go2rtc`).
 
 ## Beszel agents (`KEY` + `TOKEN`)
 

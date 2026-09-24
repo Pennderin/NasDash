@@ -37,7 +37,7 @@ That's it. NasDash starts by itself and will start at every login from now on.
 | Steam agent | Copies `agents/steam-agent/` to `%LOCALAPPDATA%\SteamAgent` |
 | Beszel agent | Installs the PC stats agent to `%LOCALAPPDATA%\BeszelAgent` and restores its identity so it reconnects as the same "PC" (history kept) |
 | Startup | Creates `NasDash`, `SteamAgent` and `BeszelAgent` shortcuts in the Startup folder |
-| Backups | Creates the **NasDash Backup** scheduled task (daily, 3:15 AM) |
+| Safety | Creates **no** scheduled tasks; removes the old "NasDash Backup" task if present (the PC never runs scripts from the NAS) |
 | Firewall | Adds **Steam Agent LAN** (TCP 7790, local subnet only) |
 | Launch | Starts everything and checks each piece is answering |
 
@@ -80,11 +80,12 @@ code and keeps your saved layouts.
 
 ## Keeping the kit up to date
 
-Two backups run automatically, so the kit always matches what is running:
+The PC runs no backup job: GitHub is the source of truth for the PC side
+(app, agents, installer). Personal state (window layouts, Coms choices, the
+Beszel agent identity) is quick to recreate. One backup runs on the NAS itself:
 
 | Backup | Runs | Copies |
 |---|---|---|
-| `backup.ps1` (PC task "NasDash Backup") | daily 3:15 AM | NasDash app, Steam agent → `app/`, `agents/`; layouts + Beszel identity → `private/` |
 | `nas-backup.sh` (NAS cron) | daily 3:30 AM | Homepage theme/config, media-bridge → `homepage/`, `media-bridge/`, **with every key redacted** |
 
 To publish the latest version to GitHub, commit and push the kit folder
