@@ -36,6 +36,11 @@ Homepage's config folder is `/mnt/user/system/docker/homepage`.
    `bash nas-containers.sh go2rtc` and `bash nas-containers.sh media-bridge`.
 3. The camera names/ids the dashboard expects are listed in `media-bridge/server.js` (`CAMS`).
 
+## 2c. Claude Door toggle (Services card)
+`bash nas-containers.sh door-toggle` (no secrets needed). It's the only container with
+the Docker socket besides Homepage/Beszel, and can only start/stop `claude-door`.
+media-bridge reaches it at `http://door-toggle:7793` on the `nasdash` network.
+
 ## 3. Beszel (system stats strip)
 **If `/mnt/user/appdata/beszel/hub` survived**: `bash nas-containers.sh beszel-hub` and you're done;
 users, systems and history are all in that folder.
