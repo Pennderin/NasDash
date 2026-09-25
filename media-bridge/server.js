@@ -21,6 +21,11 @@
 //   GET  /spotify/devices
 //   POST /spotify/transfer       {deviceId, play}
 //
+// Claude Door toggle (via the door-toggle sidecar, which alone holds the
+// Docker socket and can only touch the claude-door container):
+//   GET  /door/status
+//   POST /door/start | /door/stop   (dashboard origin only)
+//
 //   GET  /health
 
 'use strict';
@@ -1184,6 +1189,21 @@ async function llmChat(req, res) {
   res.end();
 }
 
+// ─── Claude Door toggle ─────────────────────────────────────────────────────
+const DOOR_TOGGLE_URL = (process.env.DOOR_TOGGLE_URL || 'http://door-toggle:7793').replace(/\/$/, '');
+async function doorProxy(req, res, action) {
+  if (action !== 'status') {
+    // State-changing: only from the dashboard itself, so another web page
+    // open in a browser on the LAN can't flip the Door.
+    if (!ORIGINS.includes(req.headers.origin)) return json(res, 403, { error: 'forbidden' });
+  }
+  let r;
+  try {
+    r = await fetch(`${DOOR_TOGGLE_URL}/${action}`, { method: action === 'status' ? 'GET' : 'POST', signal: AbortSignal.timeout(8000) });
+  } catch { return json(res, 503, { error: 'door-toggle not reachable' }); }
+  return json(res, r.status === 202 ? 200 : r.status, await r.json().catch(() => ({ error: 'bad response' })));
+}
+
 // ─── router ─────────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   cors(req, res);
@@ -1221,6 +1241,8 @@ const server = http.createServer(async (req, res) => {
       if (p === '/plex/thumb') return await plexThumb(req, res, url);
     }
     if (p === '/steam/friends' && req.method === 'GET') return await steamFriends(req, res);
+    if (p === '/door/status' && req.method === 'GET') return await doorProxy(req, res, 'status');
+    if ((p === '/door/start' || p === '/door/stop') && req.method === 'POST') return await doorProxy(req, res, seg[1]);
 
     if (seg[0] === 'ha' && seg.length === 2) {
       if (!HA_URL || !HA_TOKEN) return json(res, 503, { error: 'Home Assistant not configured' });

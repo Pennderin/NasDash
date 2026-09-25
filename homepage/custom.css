@@ -798,3 +798,21 @@ li.service:has(.nd-jv-open), .services-group:has(.nd-jv-open) { position: relati
 .nd-jv-a:hover .nd-jv-copy { opacity: 1; }
 .nd-jv-cursor { display: inline-block; width: .45rem; height: .8rem; background: var(--st-blue, #6ea8ff); vertical-align: -1px; margin-left: 2px; animation: nd-blink 1s steps(1) infinite; }
 @keyframes nd-blink { 50% { opacity: 0; } }
+
+/* ═══ Claude Door toggle (Services title, far right) ══════════════════════ */
+.nd-door { position: absolute; right: .45rem; top: 50%; transform: translateY(-50%); z-index: 12;
+  display: flex; align-items: center; gap: .35rem; padding: .18rem .3rem; background: transparent;
+  border: 1px solid transparent; color: var(--st-dim, #7a8494); font-size: .58rem; line-height: 1; cursor: pointer; }
+.nd-door:hover { border-color: var(--st-line, rgba(255,255,255,.14)); background: rgba(255,255,255,.06); }
+.nd-door-ico { position: relative; display: block; width: 16px; height: 16px; }
+.nd-door-ico img { width: 16px; height: 16px; display: block; }
+.nd-door-dot { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; background: #7a8494;
+  box-shadow: 0 0 0 2px rgba(10,12,16,.95); }
+.nd-door.on  .nd-door-dot { background: #22c55e; }
+.nd-door.off .nd-door-dot { background: #ef4444; }
+.nd-door.off img { filter: grayscale(1); opacity: .55; }
+.nd-door.busy { cursor: progress; color: var(--st-warn, #f5a524); }
+.nd-door.busy .nd-door-dot { background: #f5a524; animation: nd-door-pulse .7s ease-in-out infinite alternate; }
+.nd-door.err { color: #ef4444; }
+.nd-door-lbl:empty { display: none; }
+@keyframes nd-door-pulse { from { opacity: 1; } to { opacity: .2; } }

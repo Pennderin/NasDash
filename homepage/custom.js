@@ -1441,6 +1441,73 @@
     }
   })();
 
+  // ═══ 10b. Claude Door toggle (far right of the Services title) ════════════
+  // Green = claude-door running, red = stopped. Click to flip it; while Docker
+  // works the dot pulses amber with "starting…"/"stopping…" and further
+  // clicks are ignored. Goes through media-bridge -> door-toggle sidecar.
+  (() => {
+    const ICON = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/claude-ai.svg';
+    const TIMEOUT_MS = 45000;
+    const st = { s: null, pending: null, since: 0, err: '' };
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nd-door unk';
+    btn.innerHTML = `<span class="nd-door-lbl"></span><span class="nd-door-ico"><img src="${ICON}" alt="Claude Door"><i class="nd-door-dot"></i></span>`;
+    isolate(btn);
+    const lbl = btn.querySelector('.nd-door-lbl');
+
+    btn.addEventListener('click', async e => {
+      e.preventDefault(); e.stopPropagation();
+      if (st.pending || !st.s || st.s.busy || st.s.state === 'missing') return;
+      const action = st.s.running ? 'stop' : 'start';
+      st.pending = action; st.since = Date.now(); st.err = ''; render();
+      try { st.s = await post('/door/' + action); }
+      catch (x) { st.pending = null; st.err = x.message; render(); return; }
+      fastPoll();
+    });
+
+    injectors.push(() => {
+      const t = document.querySelector('li.service[data-name="Services"] .service-title');
+      if (t && btn.parentElement !== t) t.appendChild(btn);
+    });
+
+    async function poll() {
+      try { st.s = await api('/door/status'); if (!st.pending) st.err = st.s.error || ''; }
+      catch (x) { st.s = null; st.err = x.message; }
+      if (st.pending && st.s && !st.s.busy) {
+        if (st.s.error) { st.err = st.s.error; st.pending = null; }
+        else if (st.s.running === (st.pending === 'start')) st.pending = null;
+      }
+      if (st.pending && Date.now() - st.since > TIMEOUT_MS) { st.err = `${st.pending} is taking too long`; st.pending = null; }
+      render();
+    }
+    let fast = null;
+    function fastPoll() {
+      clearInterval(fast);
+      fast = setInterval(async () => { await poll(); if (!st.pending) { clearInterval(fast); fast = null; } }, 1000);
+    }
+    setInterval(() => { if (!document.hidden && !fast) poll(); }, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    poll();
+
+    function render() {
+      const s = st.s;
+      let cls, tip, text = '';
+      if (st.pending || s?.busy) {
+        const a = st.pending || s.busy;
+        cls = 'busy'; text = a === 'start' ? 'starting…' : 'stopping…';
+        tip = `Claude Door ${text}`;
+      } else if (!s) { cls = 'unk'; tip = `Claude Door: status unavailable${st.err ? ' (' + st.err + ')' : ''}`; }
+      else if (s.state === 'missing') { cls = 'unk'; tip = 'Claude Door container not found'; }
+      else if (s.running) { cls = 'on'; tip = 'Claude Door running — click to stop'; }
+      else { cls = 'off'; tip = 'Claude Door stopped — click to start'; }
+      if (st.err && s) { tip += `\n${st.err}`; if (cls !== 'busy') text = 'failed'; }
+      btn.className = 'nd-door ' + cls + (text === 'failed' ? ' err' : '');
+      btn.title = tip;
+      lbl.textContent = text;
+    }
+  })();
+
   // ═══ 11. Status badges on cards Homepage doesn't monitor ══════════════════
   // Same icon-corner dot as the monitored cards: green up · amber partial · red down.
   (() => {

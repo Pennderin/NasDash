@@ -72,8 +72,22 @@ beszel_agent() {
     henrygd/beszel-agent-nvidia:latest
 }
 
+door_toggle() {
+  # Lets the dashboard start/stop the claude-door container (and ONLY that
+  # container). Holds the Docker socket so media-bridge doesn't have to.
+  # NO published ports; only media-bridge reaches it on the nasdash network.
+  # Code: /mnt/user/appdata/door-toggle/server.js (copy from door-toggle/ in this kit)
+  mkdir -p /mnt/user/appdata/door-toggle
+  [ -f /mnt/user/appdata/door-toggle/server.js ] || cp "$HERE/door-toggle/server.js" /mnt/user/appdata/door-toggle/
+  network
+  docker rm -f door-toggle 2>/dev/null || true
+  docker run -d --name door-toggle --restart unless-stopped --network nasdash \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /mnt/user/appdata/door-toggle:/app:ro -w /app node:20-alpine node server.js
+}
+
 case "${1:-all}" in
-  homepage) homepage ;; media-bridge) media_bridge ;; go2rtc) go2rtc ;; beszel-hub) beszel_hub ;; beszel-agent) beszel_agent ;;
-  all) homepage; go2rtc; media_bridge; beszel_hub; beszel_agent ;;
-  *) echo "usage: $0 [all|homepage|media-bridge|go2rtc|beszel-hub|beszel-agent]"; exit 1 ;;
+  homepage) homepage ;; media-bridge) media_bridge ;; go2rtc) go2rtc ;; door-toggle) door_toggle ;; beszel-hub) beszel_hub ;; beszel-agent) beszel_agent ;;
+  all) homepage; go2rtc; door_toggle; media_bridge; beszel_hub; beszel_agent ;;
+  *) echo "usage: $0 [all|homepage|media-bridge|go2rtc|door-toggle|beszel-hub|beszel-agent]"; exit 1 ;;
 esac
