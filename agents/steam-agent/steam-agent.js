@@ -271,8 +271,12 @@ const ART_DIR = path.join(__dirname, 'art-cache');
 const STORE_CACHE = path.join(__dirname, 'store-art.json');
 let storeCache = (() => { try { return JSON.parse(fs.readFileSync(STORE_CACHE, 'utf8')); } catch { return {}; } })();
 const norm = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '');
+const MISS_RETRY_MS = 24 * 3600 * 1000;   // re-check "not on the store" once a day
 async function storeLookup(name) {
-  if (storeCache[name] !== undefined) return storeCache[name];
+  const c = storeCache[name];
+  if (c && !c.miss) return c;
+  if (c && c.miss && Date.now() - c.miss < MISS_RETRY_MS) return null;
+  // (a bare `null` from older versions counts as an expired miss: retry it)
   const H = { 'User-Agent': 'Mozilla/5.0' };
   let hit = null;
   try {
@@ -280,11 +284,21 @@ async function storeLookup(name) {
     const items = s1.items || [];
     const pick = items.find(x => norm(x.name) === norm(name)) || items.find(x => norm(x.name).includes(norm(name)) || norm(name).includes(norm(x.name)));
     if (pick) {
-      const d = (await (await fetch('https://store.steampowered.com/api/appdetails?appids=' + pick.id, { headers: H })).json())[pick.id]?.data;
-      if (d) hit = { storeAppId: pick.id, header: d.header_image || null, hero: d.background_raw || d.background || null };
+      // Steam sometimes answers appdetails under a different key than the id
+      // asked for (e.g. 1636440 comes back as "5124800"), so don't insist on it.
+      let d = null;
+      try {
+        const j = await (await fetch('https://store.steampowered.com/api/appdetails?appids=' + pick.id, { headers: H })).json();
+        d = (j[pick.id] || Object.values(j)[0] || {}).data || null;
+      } catch {}
+      // Standard store asset URLs as a fallback if details didn't come through.
+      const base = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${pick.id}/`;
+      hit = { storeAppId: pick.id,
+              header: (d && d.header_image) || base + 'header.jpg',
+              hero: (d && (d.background_raw || d.background)) || base + 'library_hero.jpg' };
     }
   } catch { return null; }   // network trouble: don't cache, try again later
-  storeCache[name] = hit;
+  storeCache[name] = hit || { miss: Date.now() };
   try { fs.writeFileSync(STORE_CACHE, JSON.stringify(storeCache, null, 2)); } catch {}
   return hit;
 }
@@ -302,15 +316,17 @@ async function shortcutArt(gameid, kind) {
   const file = path.join(ART_DIR, gameid + '_' + want + '.jpg');
   if (fs.existsSync(file)) return file;
   const info = await storeLookup(sc.name);
-  const url = info && (info[want] || info.header);
-  if (!url) return null;
-  try {
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!r.ok) return null;
-    fs.mkdirSync(ART_DIR, { recursive: true });
-    fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
-    return file;
-  } catch { return null; }
+  if (!info) return null;
+  for (const url of [...new Set([info[want], info.header].filter(Boolean))]) {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      fs.mkdirSync(ART_DIR, { recursive: true });
+      fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+      return file;
+    } catch {}
+  }
+  return null;
 }
 
 const server = http.createServer(async (req, res) => {
