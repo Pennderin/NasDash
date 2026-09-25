@@ -7,6 +7,7 @@ homepage/.last-nas-backup
 Thumbs.db
 # built on demand from audiodev.cs
 app/audiodev.exe
+app/winfocus.exe
 # per-machine state and caches
 cam-windows.json
 coms.json

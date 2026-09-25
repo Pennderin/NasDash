@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, shell, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, shell, session, globalShortcut } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -264,19 +264,127 @@ function showWindow() {
   mainWindow.show();
 }
 function toggleWindow() {
+  if (peeking) { peekWasHidden = true; setPeek(false); return; }
   if (alive(mainWindow) && mainWindow.isVisible()) mainWindow.hide();
   else showWindow();
+}
+
+// ─── Peek hotkey ───────────────────────────────────────────────────────────
+// Press once: NasDash jumps above everything, including borderless-fullscreen
+// apps, and takes focus. Press again: it drops back to a normal window and
+// focus returns to whatever you were in, so it ends up behind it again.
+// (True exclusive-fullscreen games can't be overlaid by any normal window.)
+// Override the key by adding "peekHotkey": "<Electron accelerator>" to
+// widget-state.json, e.g. "Control+Shift+F12".
+const DEFAULT_PEEK_HOTKEY = 'Control+Alt+D';
+let peeking = false, peekWasHidden = false, peekHotkey = null, peekPrevHwnd = null;
+
+// winfocus.exe: remembers the window you were in and hands focus back to it
+// exactly. Built from winfocus.cs with the in-box .NET Framework compiler
+// the first time it's needed (same approach as coms.js / audiodev.exe).
+const winfocus = (() => {
+  const { spawn, execFileSync } = require('child_process');
+  const EXE = path.join(__dirname, 'winfocus.exe');
+  const SRC = path.join(__dirname, 'winfocus.cs');
+  const CSC = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
+  let proc = null, buf = '', waiters = [];
+  function ensure() {
+    if (proc) return true;
+    if (!fs.existsSync(EXE) && fs.existsSync(SRC) && fs.existsSync(CSC)) {
+      try { execFileSync(CSC, ['/nologo', '/target:exe', '/platform:x64', '/out:' + EXE, SRC], { windowsHide: true }); }
+      catch (e) { console.error('winfocus build failed:', e.message); }
+    }
+    if (!fs.existsSync(EXE)) return false;
+    proc = spawn(EXE, [], { windowsHide: true });
+    proc.stdout.on('data', d => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const lineOut = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        const w = waiters.shift(); if (w) w(lineOut);
+      }
+    });
+    const reset = () => { proc = null; buf = ''; waiters.splice(0).forEach(w => w(null)); };
+    proc.on('exit', reset); proc.on('error', reset);
+    return true;
+  }
+  function ask(cmd) {
+    return new Promise(res => {
+      if (!ensure()) return res(null);
+      const t = setTimeout(() => { const k = waiters.indexOf(done); if (k >= 0) waiters.splice(k, 1); res(null); }, 400);
+      const done = v => { clearTimeout(t); res(v); };
+      waiters.push(done);
+      try { proc.stdin.write(cmd + '\n'); } catch { done(null); }
+    });
+  }
+  return {
+    warm: ensure,
+    getForeground: () => ask('get'),
+    focus: h => ask('set ' + h),
+    stop: () => { try { proc?.kill(); } catch {} },
+  };
+})();
+
+const ownHwnd = () => {
+  try { return mainWindow.getNativeWindowHandle().readBigUInt64LE(0).toString(); } catch { return null; }
+};
+
+async function setPeek(on) {
+  if (!alive(mainWindow)) createWindow();
+  if (on) {
+    const fg = await winfocus.getForeground();
+    peekPrevHwnd = (fg && fg !== '0' && fg !== ownHwnd()) ? fg : null;
+    peekWasHidden = !mainWindow.isVisible();
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.show();
+    mainWindow.moveTop();
+    mainWindow.focus();
+    peeking = true;
+  } else {
+    peeking = false;
+    mainWindow.setAlwaysOnTop(false);
+    if (peekWasHidden) mainWindow.hide();
+    // Hand focus back to the exact window you were in, which also brings it
+    // back in front of the dash. Fall back to blur() (next window down).
+    const res = peekPrevHwnd ? await winfocus.focus(peekPrevHwnd) : null;
+    if (res !== 'ok' && !peekWasHidden && alive(mainWindow)) mainWindow.blur();
+    peekPrevHwnd = null;
+  }
+  refreshTrayMenu();
+}
+let peekBusy = false;
+const togglePeek = async () => {
+  if (peekBusy) return;            // ignore key-repeat while a toggle is in flight
+  peekBusy = true;
+  try { await setPeek(!peeking); } finally { peekBusy = false; }
+};
+
+function registerPeekHotkey() {
+  const key = (typeof state.peekHotkey === 'string' && state.peekHotkey) || DEFAULT_PEEK_HOTKEY;
+  try {
+    if (globalShortcut.register(key, togglePeek)) { peekHotkey = key; winfocus.warm(); }
+    else console.error(`peek hotkey ${key} is already taken by another app`);
+  } catch (e) { console.error(`peek hotkey ${key} invalid:`, e.message); }
+}
+
+function refreshTrayMenu() {
+  if (!tray) return;
+  const peekLabel = peekHotkey
+    ? `Peek on top (${peekHotkey.replace(/Control/g, 'Ctrl')})`
+    : 'Peek on top (hotkey unavailable)';
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show/Hide', click: toggleWindow },
+    { label: peekLabel, type: 'checkbox', checked: peeking, click: togglePeek },
+    { label: 'Reload',    click: () => { showWindow(); send('reload-webview'); } },
+    { type: 'separator' },
+    { label: 'Quit',      click: () => app.quit() },
+  ]));
 }
 
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'tray-icon.png')));
   tray.setToolTip('NasDash (Homepage)');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show/Hide', click: toggleWindow },
-    { label: 'Reload',    click: () => { showWindow(); send('reload-webview'); } },
-    { type: 'separator' },
-    { label: 'Quit',      click: () => app.quit() },
-  ]));
+  refreshTrayMenu();
   tray.on('click', toggleWindow);
 }
 
@@ -322,7 +430,10 @@ ipcMain.on('expand-widget', () => {
 
 // ✕ hides to tray instead of destroying the window. (Previously it destroyed
 // it, and tray Show/Hide then did nothing until the app was relaunched.)
-ipcMain.on('hide-window', () => { if (alive(mainWindow)) mainWindow.hide(); });
+ipcMain.on('hide-window', () => {
+  if (!alive(mainWindow)) return;
+  if (peeking) { peekWasHidden = true; setPeek(false); } else mainWindow.hide();
+});
 
 ipcMain.on('toggle-lock', () => {
   state.locked = !state.locked;
@@ -427,6 +538,7 @@ function forceFreshConfigAssets() {
 app.whenReady().then(() => {
   forceFreshConfigAssets();
   createWindow();
+  registerPeekHotkey();
   createTray();
   watchDisplays();
   startOAuthLoopback();
@@ -436,5 +548,5 @@ app.whenReady().then(() => {
 
 // Keep running in the tray when the window is gone.
 let coms = null;
-app.on('will-quit', () => { try { coms?.stop(); } catch {} });
+app.on('will-quit', () => { try { coms?.stop(); } catch {} globalShortcut.unregisterAll(); winfocus.stop(); });
 app.on('window-all-closed', e => e.preventDefault());
