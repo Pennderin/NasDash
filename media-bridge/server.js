@@ -572,7 +572,16 @@ const round = (v, d = 0) => v == null || isNaN(v) ? null : Math.round(v * 10 ** 
 const shortGpu = n => String(n || 'GPU').replace(/^(NVIDIA\s+)?(GeForce\s+)?/i, '').replace(/\s+SUPER/i, ' Super').trim();
 
 async function buildSystems() {
-  const { items = [] } = await bzGet('/api/collections/systems/records?perPage=50&fields=id,name,status,info');
+  const SYS_Q = '/api/collections/systems/records?perPage=50&fields=id,name,status,info';
+  let { items = [] } = await bzGet(SYS_Q);
+  // A token from before a hub restart/restore can still be accepted (200) yet
+  // see zero systems instead of getting a 401, which left every card stuck on
+  // "missing" until the bridge restarted. If none of our systems are visible,
+  // log in fresh and ask once more.
+  if (!SYSTEMS.some(d => items.some(x => x.name === d.name))) {
+    bz.token = null;
+    ({ items = [] } = await bzGet(SYS_Q));
+  }
   const out = [];
   for (const def of SYSTEMS) {
     const sys = items.find(x => x.name === def.name);
